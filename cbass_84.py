@@ -26,19 +26,59 @@ class SampleOrdinationFigure:
         self.dist_path = os.path.join(self.distance_base_dir, '2019-05-13_08-54-39.673986.bray_curtis_within_clade_sample_distances.dist')
         self.pcoa_path = os.path.join(self.distance_base_dir, '2019-05-13_08-54-39.673986.PCoA_coords.csv')
         self.meta_path = os.path.join(self.input_base_dir, 'meta_info.xlsx')
+        self.profile_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.profiles.relative.txt')
+        self.seq_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.seqs.relative.txt')
         self.sample_uid_to_sample_name_dict = None
         self.sample_name_to_sample_uid_dict = {}
         self.dist_df = self._make_dist_df()
         self.pcoa_df = self._make_pcoa_df()
         self.meta_df = self._make_meta_df()
-        self.fig = plt.figure(figsize=(12, 12))
+        self.seq_rel_df = self._make_seq_rel_df()
+        self.profile_uid_to_profile_name_dict = {}
+        self.profile_name_to_profile_uid_dict = {}
+        self.prof_rel_df = self._make_prof_rel_df()
+        self.fig = plt.figure(figsize=(8, 12))
         self.gs = gridspec.GridSpec(2, 2)
         self.large_map_ax = plt.subplot(self.gs[:1, :1], projection=ccrs.PlateCarree(), zorder=1)
         # self.zoom_map_ax = plt.subplot(self.gs[:1, 1:2], projection=ccrs.PlateCarree(), zorder=1)
-        self.pc1_pc2_ax = plt.subplot(self.gs[:1, 1:2])
-        self.site_color_dict = {'eilat':'red', 'kaust_0': 'blue', 'kaust_1': 'green', 'kaust_2':'black'}
-        self.pc1_pc3_ax = plt.subplot(self.gs[1:2, :1])
+        self.pc1_pc2_ax = plt.subplot(self.gs[1:2, :1])
+        self.site_color_dict = {'eilat':'white', 'kaust_0': 'black', 'kaust_1': 'gray', 'kaust_2':'white'}
+        self.pc1_pc3_ax = plt.subplot(self.gs[1:2, 1:2])
+        self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2,1, subplot_spec=self.gs[0:1, 1:2])
+        self.sub_plot_seqs = plt.subplot(self.sub_plot_gs[0:1,0:1])
+        self.sub_plot_profiles = plt.subplot(self.sub_plot_gs[1:2, 0:1])
+        self.site_marker_dict = {'eilat': 'o', 'kaust_0': '^', 'kaust_1': '^', 'kaust_2': '^' }
 
+    def _make_prof_rel_df(self):
+        with open(self.profile_abund_relative_path, 'r') as f:
+            prof_data = [out_line.split('\t') for out_line in [line.rstrip() for line in f]]
+
+        df = pd.DataFrame(prof_data)
+        self.profile_uid_to_profile_name_dict = {uid:name for uid, name in zip(df.iloc[0,2:].values.tolist(), df.iloc[6, 2:].values.tolist())}
+        self.profile_name_to_profile_uid_dict = {name:uid for uid, name in self.profile_uid_to_profile_name_dict.items()}
+        df.drop(index=list(range(6)), inplace=True)
+        df.drop(columns=1, inplace=True)
+        df.columns = df.iloc[0]
+        df = df.iloc[1:-6,:]
+        df.set_index('ITS2 type profile', drop=True, inplace=True)
+        return df
+
+    def _make_seq_rel_df(self):
+        with open(self.seq_abund_relative_path, 'r') as f:
+            seq_data = [out_line.split('\t') for out_line in [line.rstrip() for line in f]]
+
+        df = pd.DataFrame(seq_data)
+        df.iat[0,0] = 'sample_uid'
+        df.columns = df.iloc[0]
+        df.drop(index=0, inplace=True)
+        df.drop(columns='sample_name', inplace=True)
+        df.set_index('sample_uid', drop=True, inplace=True)
+        df = df[:-3]
+        df.index = df.index.astype('int')
+        # Get rid of all of the superflous columns only leaving the seq rel counts
+        df = df.iloc[:,20:]
+
+        return df
 
     def _make_dist_df(self):
         with open(self.dist_path, 'r') as f:
@@ -113,6 +153,7 @@ class SampleOrdinationFigure:
         x_list = []
         y_list = []
         color_list = []
+        marker_list = []
         for i, sample_uid in enumerate(self.pcoa_df.index.values.tolist()):
             x_list.append(self.pcoa_df['PC1'][sample_uid])
             y_list.append(self.pcoa_df['PC2'][sample_uid])
@@ -120,20 +161,36 @@ class SampleOrdinationFigure:
             site = self.meta_df.loc[sample_name, 'site']
             site_color = self.site_color_dict[site]
             color_list.append(site_color)
+            marker_list.append(self.site_marker_dict[site])
 
-        self.pc1_pc2_ax.scatter(x_list, y_list, c=color_list)
+        for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
+            self.pc1_pc2_ax.scatter(x, y, c=c, marker=m, edgecolors='black')
+        self.pc1_pc2_ax.set_xticks([])
+        self.pc1_pc2_ax.set_yticks([])
+        self.pc1_pc2_ax.set_xlabel('PC1')
+        self.pc1_pc2_ax.set_ylabel('PC2')
         apples = 'asdf'
 
         y_list = []
 
         for i, sample_uid in enumerate(self.pcoa_df.index.values.tolist()):
             y_list.append(self.pcoa_df['PC3'][sample_uid])
-        self.pc1_pc3_ax.scatter(x_list, y_list, c=color_list)
-
-
-
+        for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
+            self.pc1_pc3_ax.scatter(x, y, c=c, marker=m, edgecolors='black')
+        self.pc1_pc3_ax.set_xticks([])
+        self.pc1_pc3_ax.set_yticks([])
+        self.pc1_pc3_ax.set_xlabel('PC1')
+        self.pc1_pc3_ax.set_ylabel('PC3')
 
         apples = 'asdf'
+
+
+
+        self.sub_plot_seqs = plt.subplot(self.sub_plot_gs[0:1, 0:1])
+        self.sub_plot_profiles = plt.subplot(self.sub_plot_gs[0:1, 0:1])
+
+
+
 
     def _get_naural_earth_features_big_map(self):
         land_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='land',
@@ -226,10 +283,10 @@ class SampleOrdinationFigure:
         #     x_site_coords.append(site[0])
         #     y_site_coords.append(site[1])
 
-        self.large_map_ax.plot(x_site_coords[0], y_site_coords[0], 'ro')
-        self.large_map_ax.plot(x_site_coords[1], y_site_coords[1], 'bo')
-        self.large_map_ax.plot(x_site_coords[2], y_site_coords[2], 'go')
-        self.large_map_ax.plot(x_site_coords[3], y_site_coords[3], 'ko')
+        self.large_map_ax.plot(x_site_coords[0], y_site_coords[0], 'o', markerfacecolor='white', markeredgecolor='black', markersize=8)
+        self.large_map_ax.plot(x_site_coords[1], y_site_coords[1], '^', markerfacecolor='black', markeredgecolor='black', markersize=8)
+        self.large_map_ax.plot(x_site_coords[2], y_site_coords[2], '^', markerfacecolor='gray', markeredgecolor='black', markersize=8)
+        self.large_map_ax.plot(x_site_coords[3], y_site_coords[3], '^', markerfacecolor='white', markeredgecolor='black', markersize=8)
 
     def _annotate_zoom_map(self):
         # collect unique tuples of locations
