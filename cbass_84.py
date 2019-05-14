@@ -249,14 +249,28 @@ class SampleOrdinationFigure:
             width=width,
             x_ind_list=[i * width for i in range(len(sample_order)-num_sampls_first_plot)])
 
-        from fastkml import kml
-        with open(os.path.join(self.input_base_dir, 'test_path.kml'), 'rb') as f:
-            doc=f.read()
+        self._add_kml_file_to_ax(ax=self.large_map_ax)
 
-        k = kml.KML()
-        k.from_string(doc)
-        print(k.to_string(prettyprint=True))
+        # making a smal axis
+
         apples = 'asdf'
+
+
+
+    def _add_kml_file_to_ax(self, ax, kml_path, linewidth=0.8, linestyle='-', color='black', ):
+        with open(kml_path, 'r') as f:
+            file = [line.rstrip().lstrip() for line in f]
+        for i, line in enumerate(file):
+            if '<coordinates>' in line:
+                coords = file[i + 1]
+                break
+        coords_tup_list_str = coords.split(' ')
+        x_y_tups_of_feature = []
+        for tup in coords_tup_list_str:
+            x_y_tups_of_feature.append([float(_) for _ in tup.split(',')[:-1]])
+        x_s = [_[0] for _ in x_y_tups_of_feature]
+        y_s = [_[1] for _ in x_y_tups_of_feature]
+        ax.plot(x_s, y_s, linewidth=linewidth, linestyle=linestyle, color=color)
 
     def _plot_profs_on_ax(self, ordered_sample_list, ax, width, x_ind_list):
         ax.set_xlim(0, 1)
