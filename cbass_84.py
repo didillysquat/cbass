@@ -5,7 +5,7 @@ publication of what I believe is the cbass_84 data set.
 import os
 import pandas as pd
 import matplotlib as mpl
-mpl.use('TkAgg')
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 # NB the pip cartopy install seems to be broken as it doesn't install the required libararies.
 # The solution was to install using conda. conda install cartopy.
@@ -31,6 +31,8 @@ class SampleOrdinationFigure:
         self.dist_path = os.path.join(self.distance_base_dir, '2019-05-13_08-54-39.673986.bray_curtis_within_clade_sample_distances.dist')
         self.pcoa_path = os.path.join(self.distance_base_dir, '2019-05-13_08-54-39.673986.PCoA_coords.csv')
         self.meta_path = os.path.join(self.input_base_dir, 'meta_info.xlsx')
+        self.fig_out_path = os.path.join(self.root_dir, 'figures')
+        os.makedirs(self.fig_out_path, exist_ok=True)
         self.profile_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.profiles.relative.txt')
         self.seq_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.seqs.relative.txt')
         self.gis_input_base_path = os.path.join(self.input_base_dir, 'gis')
@@ -49,7 +51,7 @@ class SampleOrdinationFigure:
         self.ordered_prof_uids = self._get_ordered_prof_uids()
         self.prof_pal = self._get_prof_pal()
         self.prof_color_dict = self._get_prof_color_dict()
-        self.fig = plt.figure(figsize=(8, 12))
+        self.fig = plt.figure(figsize=(8, 8))
         self.gs = gridspec.GridSpec(2, 2)
         self.large_map_ax = plt.subplot(self.gs[:1, :1], projection=ccrs.PlateCarree(), zorder=1)
         # self.zoom_map_ax = plt.subplot(self.gs[:1, 1:2], projection=ccrs.PlateCarree(), zorder=1)
@@ -267,6 +269,7 @@ class SampleOrdinationFigure:
         small_y0 = 22.178
         small_y1 = 22.347
         small_map_ax.set_extent(extents=(small_x0, small_x1, small_y0, small_y1))
+
         x_s, y_s = self._add_kml_file_to_ax(ax=small_map_ax, kml_path=os.path.join(self.gis_input_base_path, 'kaust_coast.kml'))
         poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
         # add top right and bottom right
@@ -297,8 +300,54 @@ class SampleOrdinationFigure:
             poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
             reef_poly = Polygon(poly_xy, closed=True, fill=True, edgecolor='None', color='red', alpha=0.2)
             small_map_ax.add_patch(reef_poly)
-            # draw the bounding box of the small map onto the big map
+        # draw the bounding box of the small map onto the big map
+        bbox_xs = [small_x0, small_x1, small_x1, small_x0]
+        bbox_ys = [small_y0, small_y0, small_y1, small_y1]
+        # bbox_xs = [36, 38, 38, 36]
+        # bbox_ys = [23, 23, 25, 25]
+        poly_xy = [[x, y] for x, y in zip(bbox_xs, bbox_ys)]
+        bbox_poly = Polygon(poly_xy, closed=True, fill=False, color='black', linewidth=1, zorder=4)
+        self.large_map_ax.add_patch(bbox_poly)
+        # draw the lines that connect the inset to the bouding box
+        poly_x = [small_x0, small_x1, 41, 37]
+        poly_y = [small_y1, small_y1, 26, 26]
+        poly_xy = [[x, y] for x, y in zip(poly_x, poly_y)]
+        zoom_poly = Polygon(poly_xy, closed=True, fill=True, color='black', alpha=0.1, linewidth=1, zorder=4)
+        self.large_map_ax.add_patch(zoom_poly)
+        # self.large_map_ax.plot([small_x0, 37], [small_y1, 26], '-', linewidth=0.8, color='black', zorder=4)
+        # self.large_map_ax.plot([small_x1, 41], [small_y1, 26], '-', linewidth=0.8, color='black', zorder=4)
+        plt.draw()
+        large_map_bbox = self.large_map_ax.get_position()
+        small_map_bbox = small_map_ax.get_position()
+        small_map_ax.set_position([
+            large_map_bbox.x1 - small_map_bbox.width,
+            large_map_bbox.y1 - small_map_bbox.height,
+            small_map_bbox.width,
+            small_map_bbox.height])
+
+        for site in ['kaust', 'protected', 'exposed']:
+            if site != 'protected':
+                small_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1], self.site_marker_dict[site], markerfacecolor='white', markeredgecolor='black', markersize=8)
+            else:
+                small_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
+                                       self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
+                                       markersize=8)
+        xlocs = [38.90, 38.95, 39.0, 39.10, 39.15]
+        ylocs = [22.15, 22.20, 22.30, 22.35]
+
+        if xlocs is not None and not isinstance(xlocs, mticker.Locator):
+            xlocs = mticker.FixedLocator(xlocs)
+        if ylocs is not None and not isinstance(ylocs, mticker.Locator):
+            ylocs = mticker.FixedLocator(ylocs)
+        g1 = Gridliner(
+            axes=small_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
+            xlocator=xlocs, ylocator=ylocs)
+        g1.xlabels_top = False
+        g1.ylabels_right = False
+        small_map_ax._gridliners.append(g1)
+        # small_map_ax.gridlines(draw_labels=True)
         apples = 'asdf'
+        plt.savefig(os.path.join(self.fig_out_path, 'map_pcoa.png'), dpi=1200)
 
 
 
