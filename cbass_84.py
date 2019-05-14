@@ -18,7 +18,7 @@ import matplotlib.gridspec as gridspec
 from matplotlib import collections, patches
 import sys
 import random
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Rectangle, Polygon
 from matplotlib.collections import PatchCollection
 from matplotlib.colors import ListedColormap
 import numpy as np
@@ -33,6 +33,7 @@ class SampleOrdinationFigure:
         self.meta_path = os.path.join(self.input_base_dir, 'meta_info.xlsx')
         self.profile_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.profiles.relative.txt')
         self.seq_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.seqs.relative.txt')
+        self.gis_input_base_path = os.path.join(self.input_base_dir, 'gis')
         self.sample_uid_to_sample_name_dict = None
         self.sample_name_to_sample_uid_dict = {}
         self.dist_df = self._make_dist_df()
@@ -179,7 +180,7 @@ class SampleOrdinationFigure:
         land_110m, ocean_110m, boundary_110m = self._get_naural_earth_features_big_map()
         self._draw_natural_earth_features_big_map(land_110m, ocean_110m,boundary_110m)
         self._put_gridlines_on_large_map_ax()
-        self._annotate_big_map()
+        self._annotate_map_with_sites()
 
         # self.zoom_map_ax.set_extent(extents=(38.75, 39.25, 22, 22.5))
         # land_10m, ocean_10m = self._get_naural_earth_features_zoom_map()
@@ -249,10 +250,54 @@ class SampleOrdinationFigure:
             width=width,
             x_ind_list=[i * width for i in range(len(sample_order)-num_sampls_first_plot)])
 
-        self._add_kml_file_to_ax(ax=self.large_map_ax)
+        # self._add_kml_file_to_ax(ax=self.large_map_ax)
+
+
 
         # making a smal axis
+        dis_data = self.large_map_ax.transData.transform([(37.0, 26.0), (41.0, 30.0)])
+        inv = self.fig.transFigure.inverted()
+        fig_data = inv.transform(dis_data)
+        width = fig_data[1][0] - fig_data[0][0]
+        height = fig_data[1][1] - fig_data[0][1]
+        small_map_ax = self.fig.add_axes([fig_data[0][0], fig_data[0][1], width, height], zorder=2,
+                                              projection=ccrs.PlateCarree())
+        small_x0 = 38.95
+        small_x1 = 39.12
+        small_y0 = 22.178
+        small_y1 = 22.347
+        small_map_ax.set_extent(extents=(small_x0, small_x1, small_y0, small_y1))
+        x_s, y_s = self._add_kml_file_to_ax(ax=small_map_ax, kml_path=os.path.join(self.gis_input_base_path, 'kaust_coast.kml'))
+        poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
+        # add top right and bottom right
+        poly_xy.extend([[small_x1, small_y0],[small_x1,small_y1]])
+        land_poly = Polygon(poly_xy, closed=True, fill=True, color=(238 / 255, 239 / 255, 219 / 255))
+        small_map_ax.add_patch(land_poly)
+        # now do the seq poly
+        poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
+        # add top left and bottom left
+        poly_xy.extend([[small_x0, small_y0], [small_x0,small_y1]])
+        sea_poly = Polygon(poly_xy, closed=True, fill=True, color=(136 / 255, 182 / 255, 224 / 255))
+        small_map_ax.add_patch(sea_poly)
 
+        for i in range(1,33,1):
+            kml_path = os.path.join(self.gis_input_base_path, f'reef_{i}.kml')
+            with open(kml_path, 'r') as f:
+                file = [line.rstrip().lstrip() for line in f]
+            for i, line in enumerate(file):
+                if '<coordinates>' in line:
+                    coords = file[i + 1]
+                    break
+            coords_tup_list_str = coords.split(' ')
+            x_y_tups_of_feature = []
+            for tup in coords_tup_list_str:
+                x_y_tups_of_feature.append([float(_) for _ in tup.split(',')[:-1]])
+            x_s = [_[0] for _ in x_y_tups_of_feature]
+            y_s = [_[1] for _ in x_y_tups_of_feature]
+            poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
+            reef_poly = Polygon(poly_xy, closed=True, fill=True, edgecolor='None', color='red', alpha=0.2)
+            small_map_ax.add_patch(reef_poly)
+            # draw the bounding box of the small map onto the big map
         apples = 'asdf'
 
 
@@ -271,6 +316,7 @@ class SampleOrdinationFigure:
         x_s = [_[0] for _ in x_y_tups_of_feature]
         y_s = [_[1] for _ in x_y_tups_of_feature]
         ax.plot(x_s, y_s, linewidth=linewidth, linestyle=linestyle, color=color)
+        return x_s, y_s
 
     def _plot_profs_on_ax(self, ordered_sample_list, ax, width, x_ind_list):
         ax.set_xlim(0, 1)
@@ -446,24 +492,15 @@ class SampleOrdinationFigure:
         self.zoom_map_ax._gridliners.append(g1)
         # self.zoom_map_ax.gridlines(draw_labels=True)
 
-    def _annotate_big_map(self):
-        # collect unique tuples of locations
-        x_site_coords = [34.934402, 38.960234,39.05165, 39.04878]
-        y_site_coords =  [29.514673, 22.303411, 22.26302, 22.26189]
+    def _annotate_map_with_sites(self):
+        for site in ['eilat']:
+            if site != 'protected':
+                self.large_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1], self.site_marker_dict[site], markerfacecolor='white', markeredgecolor='black', markersize=8)
+            else:
+                self.large_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
+                                       self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
+                                       markersize=8)
 
-        # coord_sets = set()
-        # for i, sample_name in enumerate(self.meta_df.index.values.tolist()):
-        #     coord_sets.add((self.meta_df['collection_longitude'][sample_name], self.meta_df['collection_latitude'][sample_name]))
-        # x_site_coords = []
-        # y_site_coords = []
-        # for site in coord_sets:
-        #     x_site_coords.append(site[0])
-        #     y_site_coords.append(site[1])
-
-        self.large_map_ax.plot(x_site_coords[0], y_site_coords[0], 'o', markerfacecolor='white', markeredgecolor='black', markersize=8)
-        self.large_map_ax.plot(x_site_coords[1], y_site_coords[1], '^', markerfacecolor='black', markeredgecolor='black', markersize=8)
-        self.large_map_ax.plot(x_site_coords[2], y_site_coords[2], '^', markerfacecolor='gray', markeredgecolor='black', markersize=8)
-        self.large_map_ax.plot(x_site_coords[3], y_site_coords[3], '^', markerfacecolor='white', markeredgecolor='black', markersize=8)
 
     def _annotate_zoom_map(self):
         # collect unique tuples of locations
