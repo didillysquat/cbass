@@ -5,7 +5,7 @@ publication of what I believe is the cbass_84 data set.
 import os
 import pandas as pd
 import matplotlib as mpl
-mpl.use('TkAgg')
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 # NB the pip cartopy install seems to be broken as it doesn't install the required libararies.
 # The solution was to install using conda. conda install cartopy.
@@ -60,8 +60,8 @@ class SampleOrdinationFigure:
         self.sites_location_dict = {'eilat': (34.934402, 29.514673), 'kaust': (38.960234, 22.303411), 'exposed': (39.04470, 22.270300), 'protected':(39.051982,22.26900)}
         self.site_color_dict = {'eilat':'white', 'kaust': 'white', 'exposed': 'white', 'protected':'black'}
         self.pc1_pc3_ax = plt.subplot(self.gs[1:2, 1:2])
-        self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2,1, subplot_spec=self.gs[0:1, 1:2])
-        self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:1,0:1]), plt.subplot(self.sub_plot_gs[1:2,0:1])]
+        self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2,55, subplot_spec=self.gs[0:1, 1:2])
+        self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:1,0:55]), plt.subplot(self.sub_plot_gs[1:2,0:29]), plt.subplot(self.sub_plot_gs[1:2,29:])]
         # self.sub_plot_profiles_axarr = [plt.subplot(self.sub_plot_gs[1:2, 0:1]), plt.subplot(self.sub_plot_gs[3:4, 0:1])]
         self.site_marker_dict = {'eilat': 'o', 'kaust': '^', 'protected': '+', 'exposed': 's' }
 
@@ -244,15 +244,24 @@ class SampleOrdinationFigure:
             ordered_sample_list=sample_order[:num_sampls_first_plot],
             ax = self.sub_plot_seqs_axarr[0],
             width=width,
-            x_ind_list = [i * width for i in range(num_sampls_first_plot)])
+            x_ind_list = [i * width for i in range(num_sampls_first_plot)], num_samples_in_first_plot=num_sampls_first_plot)
 
         self._plot_seqs_on_ax(
             ordered_sample_list=sample_order[num_sampls_first_plot:],
             ax=self.sub_plot_seqs_axarr[1],
             width=width,
-            x_ind_list=[i * width for i in range(len(sample_order)-num_sampls_first_plot)])
+            x_ind_list=[i * width for i in range(len(sample_order)-num_sampls_first_plot)], num_samples_in_first_plot=num_sampls_first_plot)
 
         # self._add_kml_file_to_ax(ax=self.large_map_ax)
+        # here plot the legend
+        ax = self.sub_plot_seqs_axarr[2]
+        ax.spines['top'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.text(0.5, 0.5, s='put legend here', verticalalignment='center', horizontalalignment='center', fontsize='x-small')
 
 
 
@@ -364,15 +373,15 @@ class SampleOrdinationFigure:
         # small_map_ax.gridlines(draw_labels=True)
         self._annotate_site_arrow_small_map(
             small_map_ax, tail_x=annotation_xs[0], tail_y=annotation_y-0.01,
-            head_x=self.sites_location_dict['kaust'][0], head_y=self.sites_location_dict['kaust'][1])
+            head_x=self.sites_location_dict['kaust'][0], head_y=self.sites_location_dict['kaust'][1], zorder=5)
 
         self._annotate_site_arrow_small_map(
             small_map_ax, tail_x=annotation_xs[1], tail_y=annotation_y - 0.01,
-            head_x=self.sites_location_dict['exposed'][0], head_y=self.sites_location_dict['exposed'][1])
+            head_x=self.sites_location_dict['exposed'][0], head_y=self.sites_location_dict['exposed'][1], zorder=5)
 
         self._annotate_site_arrow_small_map(
             small_map_ax, tail_x=annotation_xs[2], tail_y=annotation_y - 0.01,
-            head_x=self.sites_location_dict['protected'][0], head_y=self.sites_location_dict['protected'][1])
+            head_x=self.sites_location_dict['protected'][0], head_y=self.sites_location_dict['protected'][1], zorder=5)
 
 
 
@@ -398,11 +407,11 @@ class SampleOrdinationFigure:
         apples = 'asdf'
         plt.savefig(os.path.join(self.fig_out_path, 'map_pcoa.png'), dpi=1200)
 
-    def _annotate_site_arrow_small_map(self, small_map_ax, head_x, head_y, tail_x, tail_y):
+    def _annotate_site_arrow_small_map(self, small_map_ax, head_x, head_y, tail_x, tail_y, zorder):
         # draw arrows on plot
         dx=head_x-tail_x
         dy=head_y-tail_y
-        small_map_ax.arrow(x=tail_x, y=tail_y, dx=dx, dy=dy)
+        small_map_ax.arrow(x=tail_x, y=tail_y, dx=dx, dy=dy, zorder=zorder)
 
     def _add_kml_file_to_ax(self, ax, kml_path, linewidth=0.8, linestyle='-', color='black', ):
         with open(kml_path, 'r') as f:
@@ -452,8 +461,8 @@ class SampleOrdinationFigure:
         patches_collection.set_array(np.arange(len(patches_list)))
         ax.add_collection(patches_collection)
 
-    def _plot_seqs_on_ax(self, ordered_sample_list, ax, width, x_ind_list):
-        ax.set_xlim(0, 1)
+    def _plot_seqs_on_ax(self, ordered_sample_list, ax, width, x_ind_list, num_samples_in_first_plot):
+        ax.set_xlim(0, len(ordered_sample_list)/num_samples_in_first_plot)
         prof_depth = 0.3
         ax.set_ylim(-(prof_depth+0.25), 1)
         ax.spines['top'].set_visible(False)
@@ -556,9 +565,9 @@ class SampleOrdinationFigure:
 
     def _get_naural_earth_features_big_map(self):
         land_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='land',
-                                                       scale='110m')
+                                                       scale='10m')
         ocean_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='ocean',
-                                                        scale='110m')
+                                                        scale='10m')
         boundary_110m = cartopy.feature.NaturalEarthFeature(category='cultural',
                                                             name='admin_0_boundary_lines_land', scale='110m')
         return land_110m, ocean_110m, boundary_110m
@@ -574,9 +583,9 @@ class SampleOrdinationFigure:
     def _draw_natural_earth_features_big_map(self, land_110m, ocean_110m, boundary_110m):
         """NB the RGB must be a tuple in a list and the R, G, B must be given as a value between 0 and 1"""
         self.large_map_ax.add_feature(land_110m, facecolor=[(238 / 255, 239 / 255, 219 / 255)],
-                                      edgecolor='black')
+                                      edgecolor='black', linewidth=0.2)
         self.large_map_ax.add_feature(ocean_110m, facecolor=[(136 / 255, 182 / 255, 224 / 255)],
-                                      edgecolor='black')
+                                      edgecolor='black', linewidth=0.2)
         self.large_map_ax.add_feature(boundary_110m, edgecolor='gray', linewidth=0.2, facecolor='None')
 
     def _draw_natural_earth_features_zoom_map(self, land_10m, ocean_10m):
