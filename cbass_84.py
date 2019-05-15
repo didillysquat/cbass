@@ -5,7 +5,7 @@ publication of what I believe is the cbass_84 data set.
 import os
 import pandas as pd
 import matplotlib as mpl
-mpl.use('Agg')
+mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 # NB the pip cartopy install seems to be broken as it doesn't install the required libararies.
 # The solution was to install using conda. conda install cartopy.
@@ -18,7 +18,7 @@ import matplotlib.gridspec as gridspec
 from matplotlib import collections, patches
 import sys
 import random
-from matplotlib.patches import Rectangle, Polygon
+from matplotlib.patches import Rectangle, Polygon, Arrow
 from matplotlib.collections import PatchCollection
 from matplotlib.colors import ListedColormap
 import numpy as np
@@ -57,7 +57,7 @@ class SampleOrdinationFigure:
         # self.zoom_map_ax = plt.subplot(self.gs[:1, 1:2], projection=ccrs.PlateCarree(), zorder=1)
         self.pc1_pc2_ax = plt.subplot(self.gs[1:2, :1])
         self.sites = ['eilat', 'kaust', 'exposed', 'protected']
-        self.sites_location_dict = {'eilat': (34.934402, 29.514673), 'kaust': (38.960234, 22.303411), 'exposed': (39.04878, 22.26189), 'protected':(39.05165,22.26302)}
+        self.sites_location_dict = {'eilat': (34.934402, 29.514673), 'kaust': (38.960234, 22.303411), 'exposed': (39.04470, 22.270300), 'protected':(39.051982,22.26900)}
         self.site_color_dict = {'eilat':'white', 'kaust': 'white', 'exposed': 'white', 'protected':'black'}
         self.pc1_pc3_ax = plt.subplot(self.gs[1:2, 1:2])
         self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2,1, subplot_spec=self.gs[0:1, 1:2])
@@ -207,8 +207,8 @@ class SampleOrdinationFigure:
             self.pc1_pc2_ax.scatter(x, y, c=c, marker=m, edgecolors='black')
         self.pc1_pc2_ax.set_xticks([])
         self.pc1_pc2_ax.set_yticks([])
-        self.pc1_pc2_ax.set_xlabel('PC1')
-        self.pc1_pc2_ax.set_ylabel('PC2')
+        self.pc1_pc2_ax.set_xlabel('PC1 - 37.9%')
+        self.pc1_pc2_ax.set_ylabel('PC2 - 27.5%')
         apples = 'asdf'
 
         y_list = []
@@ -219,8 +219,8 @@ class SampleOrdinationFigure:
             self.pc1_pc3_ax.scatter(x, y, c=c, marker=m, edgecolors='black')
         self.pc1_pc3_ax.set_xticks([])
         self.pc1_pc3_ax.set_yticks([])
-        self.pc1_pc3_ax.set_xlabel('PC1')
-        self.pc1_pc3_ax.set_ylabel('PC3')
+        self.pc1_pc3_ax.set_xlabel('PC1 - 37.9%')
+        self.pc1_pc3_ax.set_ylabel('PC3 - 14.0%')
 
         apples = 'asdf'
 
@@ -325,13 +325,29 @@ class SampleOrdinationFigure:
             small_map_bbox.width,
             small_map_bbox.height])
 
-        for site in ['kaust', 'protected', 'exposed']:
-            if site != 'protected':
-                small_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1], self.site_marker_dict[site], markerfacecolor='white', markeredgecolor='black', markersize=8)
-            else:
-                small_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
-                                       self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
-                                       markersize=8)
+        # for site in ['kaust', 'protected', 'exposed']:
+        #     if site != 'protected':
+        #         small_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1], self.site_marker_dict[site], markerfacecolor='white', markeredgecolor='black', markersize=8)
+        #     else:
+        #         small_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
+        #                                self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
+        #                                markersize=8)
+        annotation_y = 22.33
+        annotation_xs = [small_x0 + 1/6*(small_x1-small_x0), small_x0 + 2/6*(small_x1-small_x0),small_x0 + 3/6*(small_x1-small_x0)]
+
+
+        # plot the 'kaust point'
+        small_map_ax.plot(
+            annotation_xs[0], annotation_y, self.site_marker_dict['kaust'],
+            markerfacecolor='white', markeredgecolor='black', markersize=8)
+        # plot exposed
+        small_map_ax.plot(
+            annotation_xs[1], annotation_y, self.site_marker_dict['exposed'],
+            markerfacecolor='white', markeredgecolor='black', markersize=8)
+        small_map_ax.plot(
+            annotation_xs[2], annotation_y, self.site_marker_dict['protected'],
+            markerfacecolor='black', markeredgecolor='black', markersize=8)
+
         xlocs = [38.90, 38.95, 39.0, 39.10, 39.15]
         ylocs = [22.15, 22.20, 22.30, 22.35]
 
@@ -346,10 +362,47 @@ class SampleOrdinationFigure:
         g1.ylabels_right = False
         small_map_ax._gridliners.append(g1)
         # small_map_ax.gridlines(draw_labels=True)
+        self._annotate_site_arrow_small_map(
+            small_map_ax, tail_x=annotation_xs[0], tail_y=annotation_y-0.01,
+            head_x=self.sites_location_dict['kaust'][0], head_y=self.sites_location_dict['kaust'][1])
+
+        self._annotate_site_arrow_small_map(
+            small_map_ax, tail_x=annotation_xs[1], tail_y=annotation_y - 0.01,
+            head_x=self.sites_location_dict['exposed'][0], head_y=self.sites_location_dict['exposed'][1])
+
+        self._annotate_site_arrow_small_map(
+            small_map_ax, tail_x=annotation_xs[2], tail_y=annotation_y - 0.01,
+            head_x=self.sites_location_dict['protected'][0], head_y=self.sites_location_dict['protected'][1])
+
+
+
+        poly_xs=[33,36,36,33]
+        poly_ys = [22,22,24,24]
+        leg_poly = Polygon(xy=[[x, y] for x, y in zip(poly_xs, poly_ys)], closed=True, edgecolor='black', fill=True, facecolor='white', alpha=0.8, zorder=3)
+
+        self.large_map_ax.add_patch(leg_poly)
+        leg_xs = [33.3]
+        leg_ys = [22 + 8/5, 22 + 6/5, 22 + 4/5, 22 + 2/5]
+
+        for i, site in enumerate(['eilat', 'kaust', 'exposed', 'protected']):
+            if site != 'protected':
+                self.large_map_ax.plot(leg_xs[0], leg_ys[i], self.site_marker_dict[site], markerfacecolor='white', markeredgecolor='black', markersize=6, zorder=4)
+            else:
+                self.large_map_ax.plot(leg_xs[0], leg_ys[i],
+                                       self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
+                                       markersize=6, zorder=4)
+            self.large_map_ax.text(poly_xs[0]+0.75, leg_ys[i], s=site, verticalalignment='center', horizontalalignment='left', fontsize='x-small')
+
+
+
         apples = 'asdf'
         plt.savefig(os.path.join(self.fig_out_path, 'map_pcoa.png'), dpi=1200)
 
-
+    def _annotate_site_arrow_small_map(self, small_map_ax, head_x, head_y, tail_x, tail_y):
+        # draw arrows on plot
+        dx=head_x-tail_x
+        dy=head_y-tail_y
+        small_map_ax.arrow(x=tail_x, y=tail_y, dx=dx, dy=dy)
 
     def _add_kml_file_to_ax(self, ax, kml_path, linewidth=0.8, linestyle='-', color='black', ):
         with open(kml_path, 'r') as f:
@@ -402,7 +455,7 @@ class SampleOrdinationFigure:
     def _plot_seqs_on_ax(self, ordered_sample_list, ax, width, x_ind_list):
         ax.set_xlim(0, 1)
         prof_depth = 0.3
-        ax.set_ylim(-(prof_depth+0.2), 1)
+        ax.set_ylim(-(prof_depth+0.25), 1)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         ax.spines['bottom'].set_visible(False)
@@ -417,14 +470,34 @@ class SampleOrdinationFigure:
 
         patches_list = []
         color_list = []
+
+        start_point = None
+        current_site = 'foo'
+        type_count = 1
+        line_y_val = [-0.325, -0.375]
+        point_y_val = [-0.425, -0.475]
         for sample_uid, x_ind in zip(ordered_sample_list, x_ind_list):
             # for each sample we will start at 0 for the y and then add the height of each bar to this
+
+
+
             site = self.meta_df.loc[self.sample_uid_to_sample_name_dict[sample_uid], 'site']
-            if site == 'protected':
-                ax.scatter(x_ind + (0.5 * width), -0.45, marker=self.site_marker_dict[site],
-                           facecolor='black')
-            else:
-                ax.scatter(x_ind + (0.5*width), -0.45, marker=self.site_marker_dict[site], edgecolor='black', facecolor='white')
+            if site != current_site:
+
+                if start_point is not None: # if point in list then add new and plot line then add new start point
+                    type_count += 1
+                    self._plot_site_desig_line_and_point(ax, current_site, line_y_val, point_y_val, start_point,
+                                                         type_count, x_ind)
+                    start_point = x_ind
+                    current_site = site
+                else: # this was the first one and we should simply add the start point
+                    current_site=site
+                    start_point = x_ind
+            # if site == 'protected':
+            #     ax.scatter(x_ind + (0.5 * width), -0.45, marker=self.site_marker_dict[site],
+            #                facecolor='black')
+            # else:
+            #     ax.scatter(x_ind + (0.5*width), -0.45, marker=self.site_marker_dict[site], edgecolor='black', facecolor='white')
             bottom = 0
             # for each sequence, create a rect patch
             # the rect will be 1 in width and centered about the ind value.
@@ -456,6 +529,10 @@ class SampleOrdinationFigure:
                 color_list.append(self.prof_color_dict[ser_index])
 
 
+        # add the last line
+        type_count += 1
+        self._plot_site_desig_line_and_point(ax, current_site, line_y_val, point_y_val, start_point,
+                                             type_count, x_ind_list[-1] + (x_ind_list[-1] - x_ind_list[-2]))
         listed_colour_map = ListedColormap(color_list)
         patches_collection = PatchCollection(patches_list, cmap=listed_colour_map)
         patches_collection.set_array(np.arange(len(patches_list)))
@@ -463,6 +540,19 @@ class SampleOrdinationFigure:
         # ax.autoscale_view()
         # ax.figure.canvas.draw()
 
+    def _plot_site_desig_line_and_point(self, ax, current_site, line_y_val, point_y_val, start_point, type_count,
+                                        x_ind):
+        # plot the line
+        ax.plot([start_point, x_ind], [line_y_val[type_count % 2], line_y_val[type_count % 2]], 'k-')
+        # plot the point in the middle of the line
+        if current_site == 'protected':
+            ax.scatter(start_point + ((x_ind - start_point) / 2), point_y_val[type_count % 2],
+                       marker=self.site_marker_dict[current_site],
+                       facecolor='black')
+        else:
+            ax.scatter(start_point + ((x_ind - start_point) / 2), point_y_val[type_count % 2],
+                       marker=self.site_marker_dict[current_site], edgecolor='black',
+                       facecolor='white')
 
     def _get_naural_earth_features_big_map(self):
         land_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='land',
