@@ -5,7 +5,7 @@ publication of what I believe is the cbass_84 data set.
 import os
 import pandas as pd
 import matplotlib as mpl
-mpl.use('Agg')
+mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 # NB the pip cartopy install seems to be broken as it doesn't install the required libararies.
 # The solution was to install using conda. conda install cartopy.
@@ -36,6 +36,10 @@ class SampleOrdinationFigure:
         self.profile_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.profiles.relative.txt')
         self.seq_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.seqs.relative.txt')
         self.gis_input_base_path = os.path.join(self.input_base_dir, 'gis')
+        self.transcript_input_base_path = os.path.join(self.input_base_dir, 'transcripts')
+        self.transcript_kallisto_matrix_path = os.path.join(self.transcript_input_base_path, 'spis_kallisto_TPM_norm_matrix.txt')
+        self.transcript_output_path = os.path.join(self.transcript_input_base_path, 'outputs')
+        self.host_kallisto_df = self._make_kallisto_df()
         self.sample_uid_to_sample_name_dict = None
         self.sample_name_to_sample_uid_dict = {}
         self.dist_df = self._make_dist_df()
@@ -64,6 +68,37 @@ class SampleOrdinationFigure:
         self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:1,0:55]), plt.subplot(self.sub_plot_gs[1:2,0:29]), plt.subplot(self.sub_plot_gs[1:2,29:])]
         # self.sub_plot_profiles_axarr = [plt.subplot(self.sub_plot_gs[1:2, 0:1]), plt.subplot(self.sub_plot_gs[3:4, 0:1])]
         self.site_marker_dict = {'eilat': 'o', 'kaust': '^', 'protected': '+', 'exposed': 's' }
+
+    def _make_kallisto_df(self):
+        # with open(self.transcript_kallisto_matrix_path, 'r') as f:
+        #     data = [line.rstrip().lstrip() for line in f]
+        df = pd.read_csv(self.transcript_kallisto_matrix_path, sep='\t')
+        df = df.astype('float')
+        df['var'] = df.std(axis=1)
+
+        from scipy import stats
+        df_z = pd.DataFrame(stats.zscore(df, axis=1), columns=df.columns.values.tolist(), index=df.index.values.tolist())
+        # for i in range(36):
+        #     ax = plt.subplot(6,6,i+1)
+        #     ax.hist(df_z.iloc[i,:], bins=10)
+        # we are now interested in the genes that have the highest cumulative zscore where the absolute value of the
+        # score is taken (i.e. so that negative z-socres are also important).
+        # df_z['cumulative_z'] = df_z.apply(self._calculate_cumulative_zscores, axis=1)
+        df_z['cumulative_z'] = df_z.abs().sum(axis=1)
+        ax = plt.subplot(111)
+        ax.hist(df_z['cumulative_z'], bins=100)
+        df_z.sort_values('cumulative_z', axis=0, ascending=False, inplace=True)
+        # get the top 100 DEG
+
+        df_deg_100 = df_z.iloc[:100, :-2]
+        df_deg_100.to_csv(os.path.join(self.transcript_output_path, 'spis_deg_100.csv'))
+        apples = 'asdf'
+
+    def _calculate_cumulative_zscores(self, row):
+        tot = 0
+        for val in row.values.tolist():
+            tot += abs(val)
+        return tot
 
     def _get_prof_pal(self):
         return ['#%02x%02x%02x' % rgb_tup for rgb_tup in
