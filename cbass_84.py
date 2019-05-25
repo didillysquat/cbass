@@ -24,7 +24,8 @@ from matplotlib.colors import ListedColormap
 import numpy as np
 
 class SampleOrdinationFigure:
-    def __init__(self):
+    def __init__(self, plot_seqs_by='type'):
+        self.plot_seqs_by = plot_seqs_by
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.input_base_dir = os.path.join(self.root_dir, 'input')
         self.distance_base_dir = os.path.join(self.input_base_dir, 'between_sample_distances')
@@ -215,7 +216,7 @@ class SampleOrdinationFigure:
     def plot_ordination_figure(self):
         self.large_map_ax.set_extent(extents=(33.0, 41.0, 22.0, 30.0))
         land_110m, ocean_110m, boundary_110m = self._get_naural_earth_features_big_map()
-        self._draw_natural_earth_features_big_map(land_110m, ocean_110m,boundary_110m)
+        # self._draw_natural_earth_features_big_map(land_110m, ocean_110m,boundary_110m)
         self._put_gridlines_on_large_map_ax()
         self._annotate_map_with_sites()
 
@@ -225,109 +226,146 @@ class SampleOrdinationFigure:
         # self._put_gridlines_on_zoom_map_ax()
         # self._annotate_zoom_map()
 
-        x_list = []
-        y_list = []
-        color_list = []
-        marker_list = []
-        for i, sample_uid in enumerate(self.pcoa_df.index.values.tolist()):
-            x_list.append(self.pcoa_df['PC1'][sample_uid])
-            y_list.append(self.pcoa_df['PC2'][sample_uid])
-            sample_name = self.sample_uid_to_sample_name_dict[sample_uid]
-            site = self.meta_df.loc[sample_name, 'site']
-            site_color = self.site_color_dict[site]
-            color_list.append(site_color)
-            marker_list.append(self.site_marker_dict[site])
+        color_list, marker_list, x_list = self._plot_pc1_pc2_sample_dists()
 
-        for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
-            self.pc1_pc2_ax.scatter(x, y, c=c, marker=m, edgecolors='black')
-        self.pc1_pc2_ax.set_xticks([])
-        self.pc1_pc2_ax.set_yticks([])
-        self.pc1_pc2_ax.set_xlabel('PC1 - 37.9%')
-        self.pc1_pc2_ax.set_ylabel('PC2 - 27.5%')
+        self._plot_pc1_pc3_sample_dists(color_list, marker_list, x_list)
+
+        self._seq_and_type_plotting_type_ordered()
+
+        small_map_ax, small_x0, small_x1, small_y0, small_y1 = self._position_and_draw_inset_axis()
+
+        self._add_land_and_sea_to_inset(small_map_ax, small_x0, small_x1, small_y0, small_y1)
+
+        self._draw_reefs_on_inset(small_map_ax)
+
+        self._draw_inset_location(small_x0, small_x1, small_y0, small_y1)
+
+        self._draw_zoom_shade(small_x0, small_x1, small_y1)
+
+        # self.large_map_ax.plot([small_x0, 37], [small_y1, 26], '-', linewidth=0.8, color='black', zorder=4)
+        # self.large_map_ax.plot([small_x1, 41], [small_y1, 26], '-', linewidth=0.8, color='black', zorder=4)
+        self._reposition_inset(small_map_ax)
+
+        # for site in ['kaust', 'protected', 'exposed']:
+        #     if site != 'protected':
+        #         small_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1], self.site_marker_dict[site], markerfacecolor='white', markeredgecolor='black', markersize=8)
+        #     else:
+        #         small_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
+        #                                self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
+        #                                markersize=8)
+
+        # points for the site markers on inset
+        annotation_xs, annotation_y = self._draw_site_markers_on_inset(small_map_ax, small_x0, small_x1)
+        self._draw_arrows_on_inset(annotation_xs, annotation_y, small_map_ax)
+
+        self._draw_gridlines_on_inset(small_map_ax)
+
+        poly_xs = self._add_legend_bbox()
+
+        self._populate_map_legend()
+
         apples = 'asdf'
+        plt.savefig(os.path.join(self.fig_out_path, 'map_pcoa.png'), dpi=1200)
 
-        y_list = []
+    def _populate_map_legend(self):
+        leg_xs = [33.6]
+        leg_ys = [22 + 8 / 5, 22 + 6 / 5, 22 + 4 / 5, 22 + 2 / 5]
+        for i, site in enumerate(['eilat', 'kaust', 'exposed', 'protected']):
+            if site != 'protected':
+                self.large_map_ax.plot(leg_xs[0], leg_ys[i], self.site_marker_dict[site], markerfacecolor='white',
+                                       markeredgecolor='black', markersize=6, zorder=4)
+            else:
+                self.large_map_ax.plot(leg_xs[0], leg_ys[i],
+                                       self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
+                                       markersize=6, zorder=4)
+            self.large_map_ax.text(leg_xs[0] + 0.75, leg_ys[i], s=site, verticalalignment='center',
+                                   horizontalalignment='left', fontsize='x-small')
 
-        for i, sample_uid in enumerate(self.pcoa_df.index.values.tolist()):
-            y_list.append(self.pcoa_df['PC3'][sample_uid])
-        for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
-            self.pc1_pc3_ax.scatter(x, y, c=c, marker=m, edgecolors='black')
-        self.pc1_pc3_ax.set_xticks([])
-        self.pc1_pc3_ax.set_yticks([])
-        self.pc1_pc3_ax.set_xlabel('PC1 - 37.9%')
-        self.pc1_pc3_ax.set_ylabel('PC3 - 14.0%')
+    def _add_legend_bbox(self):
+        poly_xs = [33, 36, 36, 33]
+        poly_ys = [22, 22, 24, 24]
+        leg_poly = Polygon(
+            xy=[[x, y] for x, y in zip(poly_xs, poly_ys)],
+            closed=True, edgecolor='black', fill=True,
+            facecolor='white', alpha=0.8, zorder=3)
+        self.large_map_ax.add_patch(leg_poly)
+        return poly_xs
 
-        apples = 'asdf'
+    def _draw_arrows_on_inset(self, annotation_xs, annotation_y, small_map_ax):
+        self._annotate_site_arrow_small_map(
+            small_map_ax, tail_x=annotation_xs[0], tail_y=annotation_y - 0.01,
+            head_x=self.sites_location_dict['kaust'][0], head_y=self.sites_location_dict['kaust'][1],
+            zorder=5, linewidth=0.2)
+        self._annotate_site_arrow_small_map(
+            small_map_ax, tail_x=annotation_xs[1], tail_y=annotation_y - 0.01,
+            head_x=self.sites_location_dict['exposed'][0], head_y=self.sites_location_dict['exposed'][1],
+            zorder=5, linewidth=0.2)
+        self._annotate_site_arrow_small_map(
+            small_map_ax, tail_x=annotation_xs[2], tail_y=annotation_y - 0.01,
+            head_x=self.sites_location_dict['protected'][0], head_y=self.sites_location_dict['protected'][1],
+            zorder=5, linewidth=0.2)
 
+    def _draw_gridlines_on_inset(self, small_map_ax):
+        xlocs = [38.90, 38.95, 39.0, 39.10, 39.15]
+        ylocs = [22.15, 22.20, 22.30, 22.35]
+        if xlocs is not None and not isinstance(xlocs, mticker.Locator):
+            xlocs = mticker.FixedLocator(xlocs)
+        if ylocs is not None and not isinstance(ylocs, mticker.Locator):
+            ylocs = mticker.FixedLocator(ylocs)
+        g1 = Gridliner(
+            axes=small_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
+            xlocator=xlocs, ylocator=ylocs)
+        g1.xlabels_top = False
+        g1.ylabels_right = False
+        small_map_ax._gridliners.append(g1)
 
-        sample_plotting_order_matrix = [[[] for _ in range(len(self.sites))] for _ in range(len(self.ordered_prof_uids))]
-        # We will order the samples by mostabund type profile and then by site
-        # ugly but fastest is just to go through the df multiple times
-        for sample_uid in self.prof_rel_df.index.values.tolist():
-            prof_name_ind = self.ordered_prof_uids.index(self.prof_rel_df.loc[sample_uid].idxmax())
-            site_ind = self.sites.index(self.meta_df.at[self.sample_uid_to_sample_name_dict[sample_uid], 'site'])
-            sample_plotting_order_matrix[prof_name_ind][site_ind].append(sample_uid)
-        sample_order = []
-        for i in range(len(sample_plotting_order_matrix)):
-            for j in range(len(sample_plotting_order_matrix[i])):
-                sample_order.extend(sample_plotting_order_matrix[i][j])
+    def _draw_site_markers_on_inset(self, small_map_ax, small_x0, small_x1):
+        annotation_y = 22.33
+        annotation_xs = [small_x0 + 1 / 6 * (small_x1 - small_x0), small_x0 + 2 / 6 * (small_x1 - small_x0),
+                         small_x0 + 3 / 6 * (small_x1 - small_x0)]
+        # plot the 'kaust point'
+        small_map_ax.plot(
+            annotation_xs[0], annotation_y, self.site_marker_dict['kaust'],
+            markerfacecolor='white', markeredgecolor='black', markersize=8)
+        # plot exposed
+        small_map_ax.plot(
+            annotation_xs[1], annotation_y, self.site_marker_dict['exposed'],
+            markerfacecolor='white', markeredgecolor='black', markersize=8)
+        small_map_ax.plot(
+            annotation_xs[2], annotation_y, self.site_marker_dict['protected'],
+            markerfacecolor='black', markeredgecolor='black', markersize=8)
+        return annotation_xs, annotation_y
 
-        # now lets start by plotting the first 50 and then the remainders
-        num_sampls_first_plot = 55
-        width = 1 / num_sampls_first_plot
-        self._plot_seqs_on_ax(
-            ordered_sample_list=sample_order[:num_sampls_first_plot],
-            ax = self.sub_plot_seqs_axarr[0],
-            width=width,
-            x_ind_list = [i * width for i in range(num_sampls_first_plot)], num_samples_in_first_plot=num_sampls_first_plot)
+    def _reposition_inset(self, small_map_ax):
+        plt.draw()
+        large_map_bbox = self.large_map_ax.get_position()
+        small_map_bbox = small_map_ax.get_position()
+        small_map_ax.set_position([
+            large_map_bbox.x1 - small_map_bbox.width,
+            large_map_bbox.y1 - small_map_bbox.height,
+            small_map_bbox.width,
+            small_map_bbox.height])
 
-        self._plot_seqs_on_ax(
-            ordered_sample_list=sample_order[num_sampls_first_plot:],
-            ax=self.sub_plot_seqs_axarr[1],
-            width=width,
-            x_ind_list=[i * width for i in range(len(sample_order)-num_sampls_first_plot)], num_samples_in_first_plot=num_sampls_first_plot)
+    def _draw_zoom_shade(self, small_x0, small_x1, small_y1):
+        # draw the lines that connect the inset to the bouding box
+        poly_x = [small_x0, small_x1, 41, 37]
+        poly_y = [small_y1, small_y1, 26, 26]
+        poly_xy = [[x, y] for x, y in zip(poly_x, poly_y)]
+        zoom_poly = Polygon(poly_xy, closed=True, fill=True, color='black', alpha=0.1, linewidth=1, zorder=4)
+        self.large_map_ax.add_patch(zoom_poly)
 
-        # self._add_kml_file_to_ax(ax=self.large_map_ax)
-        # here plot the legend
-        ax = self.sub_plot_seqs_axarr[2]
-        ax.spines['top'].set_visible(False)
-        ax.spines['bottom'].set_visible(False)
-        ax.spines['left'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.text(0.5, 0.5, s='put legend here', verticalalignment='center', horizontalalignment='center', fontsize='x-small')
+    def _draw_inset_location(self, small_x0, small_x1, small_y0, small_y1):
+        # draw the bounding box of the small map onto the big map
+        bbox_xs = [small_x0, small_x1, small_x1, small_x0]
+        bbox_ys = [small_y0, small_y0, small_y1, small_y1]
+        # bbox_xs = [36, 38, 38, 36]
+        # bbox_ys = [23, 23, 25, 25]
+        poly_xy = [[x, y] for x, y in zip(bbox_xs, bbox_ys)]
+        bbox_poly = Polygon(poly_xy, closed=True, fill=False, color='black', linewidth=1, zorder=4)
+        self.large_map_ax.add_patch(bbox_poly)
 
-
-
-        # making a smal axis
-        dis_data = self.large_map_ax.transData.transform([(37.0, 26.0), (41.0, 30.0)])
-        inv = self.fig.transFigure.inverted()
-        fig_data = inv.transform(dis_data)
-        width = fig_data[1][0] - fig_data[0][0]
-        height = fig_data[1][1] - fig_data[0][1]
-        small_map_ax = self.fig.add_axes([fig_data[0][0], fig_data[0][1], width, height], zorder=2,
-                                              projection=ccrs.PlateCarree())
-        small_x0 = 38.95
-        small_x1 = 39.12
-        small_y0 = 22.178
-        small_y1 = 22.347
-        small_map_ax.set_extent(extents=(small_x0, small_x1, small_y0, small_y1))
-
-        x_s, y_s = self._add_kml_file_to_ax(ax=small_map_ax, kml_path=os.path.join(self.gis_input_base_path, 'kaust_coast.kml'))
-        poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
-        # add top right and bottom right
-        poly_xy.extend([[small_x1, small_y0],[small_x1,small_y1]])
-        land_poly = Polygon(poly_xy, closed=True, fill=True, color=(238 / 255, 239 / 255, 219 / 255))
-        small_map_ax.add_patch(land_poly)
-        # now do the seq poly
-        poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
-        # add top left and bottom left
-        poly_xy.extend([[small_x0, small_y0], [small_x0,small_y1]])
-        sea_poly = Polygon(poly_xy, closed=True, fill=True, color=(136 / 255, 182 / 255, 224 / 255))
-        small_map_ax.add_patch(sea_poly)
-
-        for i in range(1,33,1):
+    def _draw_reefs_on_inset(self, small_map_ax):
+        for i in range(1, 33, 1):
             kml_path = os.path.join(self.gis_input_base_path, f'reef_{i}.kml')
             with open(kml_path, 'r') as f:
                 file = [line.rstrip().lstrip() for line in f]
@@ -344,109 +382,127 @@ class SampleOrdinationFigure:
             poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
             reef_poly = Polygon(poly_xy, closed=True, fill=True, edgecolor='None', color='red', alpha=0.2)
             small_map_ax.add_patch(reef_poly)
-        # draw the bounding box of the small map onto the big map
-        bbox_xs = [small_x0, small_x1, small_x1, small_x0]
-        bbox_ys = [small_y0, small_y0, small_y1, small_y1]
-        # bbox_xs = [36, 38, 38, 36]
-        # bbox_ys = [23, 23, 25, 25]
-        poly_xy = [[x, y] for x, y in zip(bbox_xs, bbox_ys)]
-        bbox_poly = Polygon(poly_xy, closed=True, fill=False, color='black', linewidth=1, zorder=4)
-        self.large_map_ax.add_patch(bbox_poly)
-        # draw the lines that connect the inset to the bouding box
-        poly_x = [small_x0, small_x1, 41, 37]
-        poly_y = [small_y1, small_y1, 26, 26]
-        poly_xy = [[x, y] for x, y in zip(poly_x, poly_y)]
-        zoom_poly = Polygon(poly_xy, closed=True, fill=True, color='black', alpha=0.1, linewidth=1, zorder=4)
-        self.large_map_ax.add_patch(zoom_poly)
-        # self.large_map_ax.plot([small_x0, 37], [small_y1, 26], '-', linewidth=0.8, color='black', zorder=4)
-        # self.large_map_ax.plot([small_x1, 41], [small_y1, 26], '-', linewidth=0.8, color='black', zorder=4)
-        plt.draw()
-        large_map_bbox = self.large_map_ax.get_position()
-        small_map_bbox = small_map_ax.get_position()
-        small_map_ax.set_position([
-            large_map_bbox.x1 - small_map_bbox.width,
-            large_map_bbox.y1 - small_map_bbox.height,
-            small_map_bbox.width,
-            small_map_bbox.height])
 
-        # for site in ['kaust', 'protected', 'exposed']:
-        #     if site != 'protected':
-        #         small_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1], self.site_marker_dict[site], markerfacecolor='white', markeredgecolor='black', markersize=8)
-        #     else:
-        #         small_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
-        #                                self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
-        #                                markersize=8)
-        annotation_y = 22.33
-        annotation_xs = [small_x0 + 1/6*(small_x1-small_x0), small_x0 + 2/6*(small_x1-small_x0),small_x0 + 3/6*(small_x1-small_x0)]
+    def _add_land_and_sea_to_inset(self, small_map_ax, small_x0, small_x1, small_y0, small_y1):
+        x_s, y_s = self._add_kml_file_to_ax(ax=small_map_ax,
+                                            kml_path=os.path.join(self.gis_input_base_path, 'kaust_coast.kml'))
+        poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
+        # add top right and bottom right
+        poly_xy.extend([[small_x1, small_y0], [small_x1, small_y1]])
+        land_poly = Polygon(poly_xy, closed=True, fill=True, color=(238 / 255, 239 / 255, 219 / 255))
+        small_map_ax.add_patch(land_poly)
+        # now do the seq poly
+        poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
+        # add top left and bottom left
+        poly_xy.extend([[small_x0, small_y0], [small_x0, small_y1]])
+        sea_poly = Polygon(poly_xy, closed=True, fill=True, color=(136 / 255, 182 / 255, 224 / 255))
+        small_map_ax.add_patch(sea_poly)
 
+    def _position_and_draw_inset_axis(self):
+        # making a smal axis
+        dis_data = self.large_map_ax.transData.transform([(37.0, 26.0), (41.0, 30.0)])
+        inv = self.fig.transFigure.inverted()
+        fig_data = inv.transform(dis_data)
+        width = fig_data[1][0] - fig_data[0][0]
+        height = fig_data[1][1] - fig_data[0][1]
+        small_map_ax = self.fig.add_axes([fig_data[0][0], fig_data[0][1], width, height], zorder=2,
+                                         projection=ccrs.PlateCarree())
+        small_x0 = 38.95
+        small_x1 = 39.12
+        small_y0 = 22.178
+        small_y1 = 22.347
+        small_map_ax.set_extent(extents=(small_x0, small_x1, small_y0, small_y1))
+        return small_map_ax, small_x0, small_x1, small_y0, small_y1
 
-        # plot the 'kaust point'
-        small_map_ax.plot(
-            annotation_xs[0], annotation_y, self.site_marker_dict['kaust'],
-            markerfacecolor='white', markeredgecolor='black', markersize=8)
-        # plot exposed
-        small_map_ax.plot(
-            annotation_xs[1], annotation_y, self.site_marker_dict['exposed'],
-            markerfacecolor='white', markeredgecolor='black', markersize=8)
-        small_map_ax.plot(
-            annotation_xs[2], annotation_y, self.site_marker_dict['protected'],
-            markerfacecolor='black', markeredgecolor='black', markersize=8)
+    def _seq_and_type_plotting_type_ordered(self):
+        sample_order = self._get_sample_order()
+        self._plot_seq_and_type_ax(sample_order)
+        self._plot_seq_and_type_legend()
 
-        xlocs = [38.90, 38.95, 39.0, 39.10, 39.15]
-        ylocs = [22.15, 22.20, 22.30, 22.35]
+    def _plot_seq_and_type_legend(self):
+        # self._add_kml_file_to_ax(ax=self.large_map_ax)
+        # here plot the legend
+        ax = self.sub_plot_seqs_axarr[2]
+        ax.spines['top'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.text(0.5, 0.5, s='put legend here', verticalalignment='center', horizontalalignment='center',
+                fontsize='x-small')
 
-        if xlocs is not None and not isinstance(xlocs, mticker.Locator):
-            xlocs = mticker.FixedLocator(xlocs)
-        if ylocs is not None and not isinstance(ylocs, mticker.Locator):
-            ylocs = mticker.FixedLocator(ylocs)
-        g1 = Gridliner(
-            axes=small_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
-            xlocator=xlocs, ylocator=ylocs)
-        g1.xlabels_top = False
-        g1.ylabels_right = False
-        small_map_ax._gridliners.append(g1)
-        # small_map_ax.gridlines(draw_labels=True)
-        self._annotate_site_arrow_small_map(
-            small_map_ax, tail_x=annotation_xs[0], tail_y=annotation_y-0.01,
-            head_x=self.sites_location_dict['kaust'][0], head_y=self.sites_location_dict['kaust'][1], zorder=5)
+    def _plot_seq_and_type_ax(self, sample_order):
+        # We plot the first 55 because this is clean break in the ITS2 type profiles
+        num_sampls_first_plot = 55
+        width = 1 / num_sampls_first_plot
+        self._plot_seqs_on_ax(
+            ordered_sample_list=sample_order[:num_sampls_first_plot],
+            ax=self.sub_plot_seqs_axarr[0],
+            width=width,
+            x_ind_list=[i * width for i in range(num_sampls_first_plot)],
+            num_samples_in_first_plot=num_sampls_first_plot)
+        self._plot_seqs_on_ax(
+            ordered_sample_list=sample_order[num_sampls_first_plot:],
+            ax=self.sub_plot_seqs_axarr[1],
+            width=width,
+            x_ind_list=[i * width for i in range(len(sample_order) - num_sampls_first_plot)],
+            num_samples_in_first_plot=num_sampls_first_plot)
 
-        self._annotate_site_arrow_small_map(
-            small_map_ax, tail_x=annotation_xs[1], tail_y=annotation_y - 0.01,
-            head_x=self.sites_location_dict['exposed'][0], head_y=self.sites_location_dict['exposed'][1], zorder=5)
+    def _get_sample_order(self):
+        sample_plotting_order_matrix = [[[] for _ in range(len(self.sites))] for _ in
+                                        range(len(self.ordered_prof_uids))]
+        # We will order the samples by mostabund type profile and then by site
+        # ugly but fastest is just to go through the df multiple times
+        for sample_uid in self.prof_rel_df.index.values.tolist():
+            prof_name_ind = self.ordered_prof_uids.index(self.prof_rel_df.loc[sample_uid].idxmax())
+            site_ind = self.sites.index(self.meta_df.at[self.sample_uid_to_sample_name_dict[sample_uid], 'site'])
+            sample_plotting_order_matrix[prof_name_ind][site_ind].append(sample_uid)
+        sample_order = []
+        for i in range(len(sample_plotting_order_matrix)):
+            for j in range(len(sample_plotting_order_matrix[i])):
+                sample_order.extend(sample_plotting_order_matrix[i][j])
+        return sample_order
 
-        self._annotate_site_arrow_small_map(
-            small_map_ax, tail_x=annotation_xs[2], tail_y=annotation_y - 0.01,
-            head_x=self.sites_location_dict['protected'][0], head_y=self.sites_location_dict['protected'][1], zorder=5)
-
-
-
-        poly_xs=[33,36,36,33]
-        poly_ys = [22,22,24,24]
-        leg_poly = Polygon(xy=[[x, y] for x, y in zip(poly_xs, poly_ys)], closed=True, edgecolor='black', fill=True, facecolor='white', alpha=0.8, zorder=3)
-
-        self.large_map_ax.add_patch(leg_poly)
-        leg_xs = [33.3]
-        leg_ys = [22 + 8/5, 22 + 6/5, 22 + 4/5, 22 + 2/5]
-
-        for i, site in enumerate(['eilat', 'kaust', 'exposed', 'protected']):
-            if site != 'protected':
-                self.large_map_ax.plot(leg_xs[0], leg_ys[i], self.site_marker_dict[site], markerfacecolor='white', markeredgecolor='black', markersize=6, zorder=4)
-            else:
-                self.large_map_ax.plot(leg_xs[0], leg_ys[i],
-                                       self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
-                                       markersize=6, zorder=4)
-            self.large_map_ax.text(poly_xs[0]+0.75, leg_ys[i], s=site, verticalalignment='center', horizontalalignment='left', fontsize='x-small')
-
-
-
+    def _plot_pc1_pc3_sample_dists(self, color_list, marker_list, x_list):
+        y_list = []
+        for i, sample_uid in enumerate(self.pcoa_df.index.values.tolist()):
+            y_list.append(self.pcoa_df['PC3'][sample_uid])
+        for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
+            self.pc1_pc3_ax.scatter(x, y, c=c, marker=m, edgecolors='black')
+        self.pc1_pc3_ax.set_xticks([])
+        self.pc1_pc3_ax.set_yticks([])
+        self.pc1_pc3_ax.set_xlabel('PC1 - 37.9%')
+        self.pc1_pc3_ax.set_ylabel('PC3 - 14.0%')
         apples = 'asdf'
-        plt.savefig(os.path.join(self.fig_out_path, 'map_pcoa.png'), dpi=1200)
 
-    def _annotate_site_arrow_small_map(self, small_map_ax, head_x, head_y, tail_x, tail_y, zorder):
+    def _plot_pc1_pc2_sample_dists(self):
+        x_list = []
+        y_list = []
+        color_list = []
+        marker_list = []
+        for i, sample_uid in enumerate(self.pcoa_df.index.values.tolist()):
+            x_list.append(self.pcoa_df['PC1'][sample_uid])
+            y_list.append(self.pcoa_df['PC2'][sample_uid])
+            sample_name = self.sample_uid_to_sample_name_dict[sample_uid]
+            site = self.meta_df.loc[sample_name, 'site']
+            site_color = self.site_color_dict[site]
+            color_list.append(site_color)
+            marker_list.append(self.site_marker_dict[site])
+        for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
+            self.pc1_pc2_ax.scatter(x, y, c=c, marker=m, edgecolors='black')
+        self.pc1_pc2_ax.set_xticks([])
+        self.pc1_pc2_ax.set_yticks([])
+        self.pc1_pc2_ax.set_xlabel('PC1 - 37.9%')
+        self.pc1_pc2_ax.set_ylabel('PC2 - 27.5%')
+        apples = 'asdf'
+        return color_list, marker_list, x_list
+
+    def _annotate_site_arrow_small_map(self, small_map_ax, head_x, head_y, tail_x, tail_y, zorder, linewidth=1):
         # draw arrows on plot
         dx=head_x-tail_x
         dy=head_y-tail_y
-        small_map_ax.arrow(x=tail_x, y=tail_y, dx=dx, dy=dy, zorder=zorder)
+        small_map_ax.arrow(x=tail_x, y=tail_y, dx=dx, dy=dy, zorder=zorder, linewidth=linewidth)
 
     def _add_kml_file_to_ax(self, ax, kml_path, linewidth=0.8, linestyle='-', color='black', ):
         with open(kml_path, 'r') as f:
