@@ -5,7 +5,7 @@ publication of what I believe is the cbass_84 data set.
 import os
 import pandas as pd
 import matplotlib as mpl
-mpl.use('TkAgg')
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 # NB the pip cartopy install seems to be broken as it doesn't install the required libararies.
 # The solution was to install using conda. conda install cartopy.
@@ -24,8 +24,9 @@ from matplotlib.colors import ListedColormap
 import numpy as np
 
 class SampleOrdinationFigure:
-    def __init__(self, plot_seqs_by='type', distance_plotting_format='only_samples'):
+    def __init__(self, plot_seqs_by='type', distance_plotting_format='only_samples', seq_type_arrangement='by_site'):
         self.plot_seqs_by = plot_seqs_by
+        self.seq_type_arrangement = seq_type_arrangement
         self.distance_plotting_format = distance_plotting_format
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.input_base_dir = os.path.join(self.root_dir, 'input')
@@ -64,7 +65,7 @@ class SampleOrdinationFigure:
         self.profile_uid_to_profile_name_dict = {}
         self.profile_name_to_profile_uid_dict = {}
         self.prof_rel_df = self._make_prof_rel_df()
-        self.ordered_prof_uids = self._get_ordered_prof_uids()
+        self.ordered_prof_names = self._get_ordered_prof_names()
         self.prof_pal = self._get_prof_pal()
         self.prof_color_dict = self._get_prof_color_dict()
         self.fig = plt.figure(figsize=(8, 8))
@@ -99,6 +100,37 @@ class SampleOrdinationFigure:
             self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:1, 0:55]),
                                         plt.subplot(self.sub_plot_gs[1:2, 0:29]),
                                         plt.subplot(self.sub_plot_gs[1:2, 29:])]
+        elif self.distance_plotting_format == 'sample_type_by_site':
+            relative_width_large_map = 16 / 38
+            relative_width_sub_plot_gs = 1 / 2
+            gs_rows = 4
+            # 8 for each plot, 2 for gap in between with 3 gaps = 8*4 + 3*2 = 38
+            plot_width = 8
+            gap_width = 2
+            num_dist_plots = 4
+            gs_cols = (num_dist_plots * plot_width) + ((num_dist_plots - 1) * gap_width)
+            self.gs = gridspec.GridSpec(gs_rows, gs_cols)
+
+            # self.large_map_ax = plt.subplot(self.gs[:3, :int(relative_width_large_map*gs_cols)], projection=ccrs.PlateCarree(), zorder=1)
+            self.large_map_ax = plt.subplot(self.gs[:3, :int(relative_width_large_map * gs_cols)],
+                                            projection=ccrs.PlateCarree(), zorder=1)
+
+            self.pc1_pc2_sample_dist_ax = plt.subplot(self.gs[3:4, :plot_width])
+            self.pc1_pc3_sample_dist_ax = plt.subplot(self.gs[3:4, plot_width + gap_width:(plot_width * 2) + gap_width])
+            self.pc1_pc2_type_dist_ax = plt.subplot(
+                self.gs[3:4, (plot_width * 2) + (gap_width * 2):(plot_width * 3) + (gap_width * 2)])
+            self.pc1_pc3_type_dist_ax = plt.subplot(self.gs[3:4, (plot_width * 3) + (gap_width * 3):])
+            site_plot_width = 21
+            site_gap_width = 4
+            sub_plot_gs_width = ((2*site_plot_width) + site_gap_width)
+            self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(6, sub_plot_gs_width, subplot_spec=self.gs[0:3, int(
+                gs_cols * relative_width_sub_plot_gs):gs_cols])
+            self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:2, :site_plot_width]),
+                                        plt.subplot(self.sub_plot_gs[0:2, site_plot_width + site_gap_width:]),
+                                        plt.subplot(self.sub_plot_gs[2:4, :site_plot_width]),
+                                        plt.subplot(self.sub_plot_gs[2:4, site_plot_width + site_gap_width:]),
+                                        plt.subplot(self.sub_plot_gs[4:5, :]),
+                                        plt.subplot(self.sub_plot_gs[5:6, :]) ]
 
         # self.zoom_map_ax = plt.subplot(self.gs[:1, 1:2], projection=ccrs.PlateCarree(), zorder=1)
 
@@ -148,11 +180,11 @@ class SampleOrdinationFigure:
 
     def _get_prof_color_dict(self):
         temp_col_dict = {}
-        for i, prof_uid in enumerate(self.ordered_prof_uids):
-            temp_col_dict[prof_uid] = self.prof_pal[i]
+        for i, prof_name in enumerate(self.ordered_prof_names):
+            temp_col_dict[prof_name] = self.prof_pal[i]
         return temp_col_dict
 
-    def _get_ordered_prof_uids(self):
+    def _get_ordered_prof_names(self):
         return self.prof_rel_df.sum().sort_values(ascending=False).index.values.tolist()
 
     def _get_seq_color_dict(self):
@@ -284,7 +316,9 @@ class SampleOrdinationFigure:
 
         self.large_map_ax.set_extent(extents=(33.0, 41.0, 22.0, 30.0))
         land_110m, ocean_110m, boundary_110m = self._get_naural_earth_features_big_map()
-        # self._draw_natural_earth_features_big_map(land_110m, ocean_110m,boundary_110m)
+        print('drawing annotations on big map')
+        self._draw_natural_earth_features_big_map(land_110m, ocean_110m,boundary_110m)
+        print('big map annotations complete')
         self._put_gridlines_on_large_map_ax()
         self._annotate_map_with_sites()
 
@@ -301,7 +335,10 @@ class SampleOrdinationFigure:
 
         self._plot_pc1_pc3_sample_dists(color_list, marker_list, x_list)
 
-        self._seq_and_type_plotting_type_ordered()
+        if self.distance_plotting_format == 'sample_type_by_site':
+            self._seq_and_type_plotting_site_ordered()
+        else:
+            self._seq_and_type_plotting_type_ordered()
 
         small_map_ax, small_x0, small_x1, small_y0, small_y1 = self._position_and_draw_inset_axis()
 
@@ -336,7 +373,10 @@ class SampleOrdinationFigure:
         self._populate_map_legend()
 
         apples = 'asdf'
-        plt.savefig(os.path.join(self.fig_out_path, 'map_pcoa.png'), dpi=1200)
+        print('saving .png')
+        plt.savefig(os.path.join(self.fig_out_path, 'map_pcoa_sample_type_site.png'), dpi=1200)
+        print('saving .svg')
+        plt.savefig(os.path.join(self.fig_out_path, 'map_pcoa_sample_type_site.svg'), dpi=1200)
 
     def _populate_map_legend(self):
         leg_xs = [33.6]
@@ -487,23 +527,21 @@ class SampleOrdinationFigure:
 
     def _seq_and_type_plotting_type_ordered(self):
         sample_order = self._get_sample_order()
-        self._plot_seq_and_type_ax(sample_order)
-        self._plot_seq_and_type_legend()
+        self._plot_seq_and_type_ax_type_ordered(sample_order)
+        self._plot_seq_and_type_legend(ax = self.sub_plot_seqs_axarr[2])
 
-    def _plot_seq_and_type_legend(self):
-        # self._add_kml_file_to_ax(ax=self.large_map_ax)
-        # here plot the legend
-        ax = self.sub_plot_seqs_axarr[2]
-        ax.spines['top'].set_visible(False)
-        ax.spines['bottom'].set_visible(False)
-        ax.spines['left'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.text(0.5, 0.5, s='put legend here', verticalalignment='center', horizontalalignment='center',
-                fontsize='x-small')
+    def _seq_and_type_plotting_site_ordered(self):
+        sample_order = self._get_sample_order()
+        self._plot_seq_and_type_ax_site_ordered(sample_order)
+        self._plot_seq_and_type_legend(ax=self.sub_plot_seqs_axarr[4])
+        self._plot_seq_and_type_legend(ax=self.sub_plot_seqs_axarr[5], type_plotting=True)
 
-    def _plot_seq_and_type_ax(self, sample_order):
+    def _plot_seq_and_type_legend(self, ax, type_plotting=False):
+        leg_plotter = LegendPlotter(parent_plotter=self, ax=ax, type_plotting=type_plotting)
+        leg_plotter.plot_legend_seqs()
+
+
+    def _plot_seq_and_type_ax_type_ordered(self, sample_order):
         # We plot the first 55 because this is clean break in the ITS2 type profiles
         num_sampls_first_plot = 55
         width = 1 / num_sampls_first_plot
@@ -520,13 +558,31 @@ class SampleOrdinationFigure:
             x_ind_list=[i * width for i in range(len(sample_order) - num_sampls_first_plot)],
             num_samples_in_first_plot=num_sampls_first_plot)
 
+    def _plot_seq_and_type_ax_site_ordered(self, sample_order):
+        # We plot the first 55 because this is clean break in the ITS2 type profiles
+        for i, site in enumerate(self.sites):
+            # ordered sample list should be the samples of the site in the order of sample_order
+            ordered_sample_list = [sample_uid for sample_uid in sample_order if self.meta_df.at[self.sample_uid_to_sample_name_dict[sample_uid], 'site'] == site]
+            num_sampls_first_plot = len(ordered_sample_list)
+            width = 1 / num_sampls_first_plot
+            if i == 1 or i == 3:
+                y_lab=False
+            else:
+                y_lab=True
+            self._plot_seqs_on_ax(
+                ordered_sample_list=ordered_sample_list,
+                ax=self.sub_plot_seqs_axarr[i],
+                width=width,
+                x_ind_list=[i * width for i in range(num_sampls_first_plot)],
+                num_samples_in_first_plot=num_sampls_first_plot, y_lab=y_lab, site=site)
+
     def _get_sample_order(self):
         sample_plotting_order_matrix = [[[] for _ in range(len(self.sites))] for _ in
-                                        range(len(self.ordered_prof_uids))]
+                                        range(len(self.ordered_prof_names))]
         # We will order the samples by mostabund type profile and then by site
         # ugly but fastest is just to go through the df multiple times
         for sample_uid in self.prof_rel_df.index.values.tolist():
-            prof_name_ind = self.ordered_prof_uids.index(self.prof_rel_df.loc[sample_uid].idxmax())
+            prof_name_ind = self.ordered_prof_names.index(self.prof_rel_df.loc[sample_uid].idxmax())
             site_ind = self.sites.index(self.meta_df.at[self.sample_uid_to_sample_name_dict[sample_uid], 'site'])
             sample_plotting_order_matrix[prof_name_ind][site_ind].append(sample_uid)
         sample_order = []
@@ -628,10 +684,8 @@ class SampleOrdinationFigure:
             bottom = 0
             # for each sequence, create a rect patch
             # the rect will be 1 in width and centered about the ind value.
-            current_sample_series = self.prof_rel_df.loc[sample_uid]
-            non_zero_indices = current_sample_series.nonzero()[0]
-            non_zero_sample_series = current_sample_series.iloc[non_zero_indices]
-            sample_total = non_zero_sample_series.sum()
+            non_zero_sample_series, sample_total = self._get_sample_type_info(non_zero_sample_series, sample_total,
+                                                                              sample_uid)
             for ser_index, rel_abund in non_zero_sample_series.iteritems():
                 height = rel_abund / sample_total
                 patches_list.append(Rectangle(
@@ -639,98 +693,142 @@ class SampleOrdinationFigure:
                     height, color=self.prof_color_dict[ser_index]))
                 bottom += height
                 color_list.append(self.prof_color_dict[ser_index])
+        self._add_seq_and_type_rects_to_axis(ax, color_list, patches_list)
+
+    def _plot_seqs_on_ax(self, ordered_sample_list, ax, width, x_ind_list, num_samples_in_first_plot, y_lab=True, site=None):
+        prof_depth = self.format_seq_type_axis(ax, num_samples_in_first_plot, ordered_sample_list, width, x_ind_list, y_lab)
+        if self.seq_type_arrangement == 'by_site':
+            ax.set_title(site, fontsize='x-small')
+        patches_list = []
+        color_list = []
+        if self.seq_type_arrangement != 'by_site':
+            current_site, line_y_val, point_y_val, start_point, type_count = self._init_site_designation_annotation_info()
+
+        for sample_uid, x_ind in zip(ordered_sample_list, x_ind_list):
+            # for each sample we will start at 0 for the y and then add the height of each bar to this
+            if self.seq_type_arrangement != 'by_site':
+                current_site, start_point, type_count = self._annotate_site_designation_info(ax, current_site,
+                                                                                             line_y_val, point_y_val,
+                                                                                             sample_uid, start_point,
+                                                                                             type_count, x_ind)
+            # if site == 'protected':
+            #     ax.scatter(x_ind + (0.5 * width), -0.45, marker=self.site_marker_dict[site],
+            #                facecolor='black')
+            # else:
+            #     ax.scatter(x_ind + (0.5*width), -0.45, marker=self.site_marker_dict[site], edgecolor='black', facecolor='white')
+
+            # for each sequence, create a rect patch
+            # the rect will be 1 in width and centered about the ind value.
+            # make the sequence rectangles
+            non_zero_sample_series, sample_total = self._get_sample_seq_info(sample_uid)
+
+            self._add_seq_rects_to_patches_list(color_list, non_zero_sample_series, patches_list, sample_total, width,
+                                                x_ind)
+
+            # make the profile rectangle
+            non_zero_sample_series, sample_total = self._get_sample_type_info(non_zero_sample_series, sample_total,
+                                                                              sample_uid)
+            self._add_type_rects_to_patches_list(color_list, non_zero_sample_series, patches_list, prof_depth,
+                                                 sample_total, width, x_ind)
+
+        # add the last line
+        if self.seq_type_arrangement != 'by_site':
+            self._annotate_site_designation_info_last(ax, current_site, line_y_val, point_y_val, start_point,
+                                                      type_count, x_ind_list)
+
+        self._add_seq_and_type_rects_to_axis(ax, color_list, patches_list)
+        # ax.autoscale_view()
+        # ax.figure.canvas.draw()
+
+    def _add_seq_and_type_rects_to_axis(self, ax, color_list, patches_list):
         listed_colour_map = ListedColormap(color_list)
         patches_collection = PatchCollection(patches_list, cmap=listed_colour_map)
         patches_collection.set_array(np.arange(len(patches_list)))
         ax.add_collection(patches_collection)
 
-    def _plot_seqs_on_ax(self, ordered_sample_list, ax, width, x_ind_list, num_samples_in_first_plot):
-        ax.set_xlim(0, len(ordered_sample_list)/num_samples_in_first_plot)
+    def _annotate_site_designation_info_last(self, ax, current_site, line_y_val, point_y_val, start_point, type_count,
+                                             x_ind_list):
+        type_count += 1
+        self._plot_site_desig_line_and_point(ax, current_site, line_y_val, point_y_val, start_point,
+                                             type_count, x_ind_list[-1] + (x_ind_list[-1] - x_ind_list[-2]))
+
+    def _annotate_site_designation_info(self, ax, current_site, line_y_val, point_y_val, sample_uid, start_point,
+                                        type_count, x_ind):
+        site = self.meta_df.loc[self.sample_uid_to_sample_name_dict[sample_uid], 'site']
+        if site != current_site:
+
+            if start_point is not None:  # if point in list then add new and plot line then add new start point
+                type_count += 1
+                self._plot_site_desig_line_and_point(ax, current_site, line_y_val, point_y_val, start_point,
+                                                     type_count, x_ind)
+                start_point = x_ind
+                current_site = site
+            else:  # this was the first one and we should simply add the start point
+                current_site = site
+                start_point = x_ind
+        return current_site, start_point, type_count
+
+    def _init_site_designation_annotation_info(self):
+        start_point = None
+        current_site = 'foo'
+        type_count = 1
+        line_y_val = [-0.325, -0.375]
+        point_y_val = [-0.425, -0.475]
+        return current_site, line_y_val, point_y_val, start_point, type_count
+
+    def _add_type_rects_to_patches_list(self, color_list, non_zero_sample_series, patches_list, prof_depth,
+                                        sample_total, width, x_ind):
+        bottom = 0
+        for ser_index, rel_abund in non_zero_sample_series.iteritems():
+            height = (rel_abund / sample_total) * -prof_depth
+            patches_list.append(Rectangle(
+                (x_ind, bottom), width,
+                height, color=self.prof_color_dict[ser_index]))
+            bottom += height
+            color_list.append(self.prof_color_dict[ser_index])
+
+    def _add_seq_rects_to_patches_list(self, color_list, non_zero_sample_series, patches_list, sample_total, width,
+                                       x_ind):
+        bottom = 0
+        for ser_index, rel_abund in non_zero_sample_series.iteritems():
+            height = rel_abund / sample_total
+            patches_list.append(Rectangle(
+                (x_ind, bottom), width,
+                height, color=self.seq_color_dict[ser_index]))
+            bottom += height
+            color_list.append(self.seq_color_dict[ser_index])
+
+    def _get_sample_type_info(self, non_zero_sample_series, sample_total, sample_uid):
+        current_sample_series = self.prof_rel_df.loc[sample_uid]
+        non_zero_indices = current_sample_series.nonzero()[0]
+        non_zero_sample_series = current_sample_series.iloc[non_zero_indices]
+        sample_total = non_zero_sample_series.sum()
+        return non_zero_sample_series, sample_total
+
+    def _get_sample_seq_info(self, sample_uid):
+        current_sample_series = self.seq_rel_df.loc[sample_uid]
+        non_zero_indices = current_sample_series.nonzero()[0]
+        non_zero_sample_series = current_sample_series.iloc[non_zero_indices]
+        sample_total = non_zero_sample_series.sum()
+        return non_zero_sample_series, sample_total
+
+    def format_seq_type_axis(self, ax, num_samples_in_first_plot, ordered_sample_list, width, x_ind_list, y_lab):
+        ax.set_xlim(0, len(ordered_sample_list) / num_samples_in_first_plot)
         prof_depth = 0.3
-        ax.set_ylim(-(prof_depth+0.25), 1)
+        ax.set_ylim(-(prof_depth + 0.25), 1)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         ax.spines['bottom'].set_visible(False)
         ax.spines['left'].set_visible(False)
         ax.set_xticks([])
         ax.set_yticks([])
-
-
-        ax.plot([x_ind_list[0], x_ind_list[-1]+width], [0,0], 'k-', linewidth=ax.spines['right']._linewidth)
-        ax.text(x=-0.05, y=0.5, s='ITS2 sequences', horizontalalignment='center', verticalalignment='center', rotation='vertical', fontsize='xx-small')
-        ax.text(x=-0.05, y=-(prof_depth+0.2)/2, s='predicted\nprofile', horizontalalignment='center', verticalalignment='center', rotation='vertical', fontsize='xx-small')
-
-        patches_list = []
-        color_list = []
-
-        start_point = None
-        current_site = 'foo'
-        type_count = 1
-        line_y_val = [-0.325, -0.375]
-        point_y_val = [-0.425, -0.475]
-        for sample_uid, x_ind in zip(ordered_sample_list, x_ind_list):
-            # for each sample we will start at 0 for the y and then add the height of each bar to this
-
-
-
-            site = self.meta_df.loc[self.sample_uid_to_sample_name_dict[sample_uid], 'site']
-            if site != current_site:
-
-                if start_point is not None: # if point in list then add new and plot line then add new start point
-                    type_count += 1
-                    self._plot_site_desig_line_and_point(ax, current_site, line_y_val, point_y_val, start_point,
-                                                         type_count, x_ind)
-                    start_point = x_ind
-                    current_site = site
-                else: # this was the first one and we should simply add the start point
-                    current_site=site
-                    start_point = x_ind
-            # if site == 'protected':
-            #     ax.scatter(x_ind + (0.5 * width), -0.45, marker=self.site_marker_dict[site],
-            #                facecolor='black')
-            # else:
-            #     ax.scatter(x_ind + (0.5*width), -0.45, marker=self.site_marker_dict[site], edgecolor='black', facecolor='white')
-            bottom = 0
-            # for each sequence, create a rect patch
-            # the rect will be 1 in width and centered about the ind value.
-            # make the sequence rectangles
-            current_sample_series = self.seq_rel_df.loc[sample_uid]
-            non_zero_indices = current_sample_series.nonzero()[0]
-            non_zero_sample_series = current_sample_series.iloc[non_zero_indices]
-            sample_total = non_zero_sample_series.sum()
-            for ser_index, rel_abund in non_zero_sample_series.iteritems():
-                height = rel_abund / sample_total
-                patches_list.append(Rectangle(
-                    (x_ind, bottom), width,
-                    height, color=self.seq_color_dict[ser_index]))
-                bottom += height
-                color_list.append(self.seq_color_dict[ser_index])
-
-            # make the profile rectangle
-            current_sample_series = self.prof_rel_df.loc[sample_uid]
-            non_zero_indices = current_sample_series.nonzero()[0]
-            non_zero_sample_series = current_sample_series.iloc[non_zero_indices]
-            sample_total = non_zero_sample_series.sum()
-            bottom = 0
-            for ser_index, rel_abund in non_zero_sample_series.iteritems():
-                height = (rel_abund / sample_total)*-prof_depth
-                patches_list.append(Rectangle(
-                    (x_ind, bottom), width,
-                    height, color=self.prof_color_dict[ser_index]))
-                bottom += height
-                color_list.append(self.prof_color_dict[ser_index])
-
-
-        # add the last line
-        type_count += 1
-        self._plot_site_desig_line_and_point(ax, current_site, line_y_val, point_y_val, start_point,
-                                             type_count, x_ind_list[-1] + (x_ind_list[-1] - x_ind_list[-2]))
-        listed_colour_map = ListedColormap(color_list)
-        patches_collection = PatchCollection(patches_list, cmap=listed_colour_map)
-        patches_collection.set_array(np.arange(len(patches_list)))
-        ax.add_collection(patches_collection)
-        # ax.autoscale_view()
-        # ax.figure.canvas.draw()
+        ax.plot([x_ind_list[0], x_ind_list[-1] + width], [0, 0], 'k-', linewidth=ax.spines['right']._linewidth)
+        if y_lab:
+            ax.text(x=-0.05, y=0.5, s='ITS2 sequences', horizontalalignment='center', verticalalignment='center',
+                    rotation='vertical', fontsize='xx-small')
+            ax.text(x=-0.08, y=-(prof_depth + 0.2) / 2, s='predicted\nprofile', horizontalalignment='center',
+                    verticalalignment='center', rotation='vertical', fontsize='xx-small')
+        return prof_depth
 
     def _plot_site_desig_line_and_point(self, ax, current_site, line_y_val, point_y_val, start_point, type_count,
                                         x_ind):
@@ -947,6 +1045,130 @@ class SampleOrdinationFigure:
             "#98D058", "#6C8F7D", "#D7BFC2", "#3C3E6E", "#D83D66", "#2F5D9B", "#6C5E46", "#D25B88", "#5B656C",
             "#00B57F",
             "#545C46", "#866097", "#365D25", "#252F99", "#00CCFF", "#674E60", "#FC009C", "#92896B"]
-sof = SampleOrdinationFigure(distance_plotting_format='sample_type')
+
+
+class LegendPlotter:
+    """This class can be used by the SeqStackedBarPlotter and the TypeStackedBarPlotter to handle
+    the plotting of the legend subplot.
+    """
+    def __init__(self, parent_plotter, ax, type_plotting=False):
+        # whether we are plotting types
+        self.type_plotting=type_plotting
+        self.parent_plotter = parent_plotter
+        self.ax_to_plot_on = ax
+        # legend setup parameters
+        if type_plotting:
+            self.max_n_rows = 3
+            self.max_n_cols = 3
+        else:
+            self.max_n_rows = 3
+            self.max_n_cols = 7
+        self.num_leg_cells = self.max_n_rows * self.max_n_cols
+        self.y_coord_increments = 100 / self.max_n_rows
+        self.leg_box_depth = 2 / 3 * self.y_coord_increments
+
+        self.x_coord_increments = 100 / self.max_n_cols
+        if type_plotting:
+            self.leg_box_width = self.x_coord_increments /5
+        else:
+            self.leg_box_width = self.x_coord_increments / 3
+        self._set_n_rows_and_last_row_len()
+        self.column_count = 0
+
+    def plot_legend_seqs(self):
+        self._set_ylim_and_x_lim_and_invert_y_axis()
+
+        self._plot_legend_rows()
+
+        self._remove_frames_from_axis()
+
+    def _plot_legend_rows(self):
+        if not self.type_plotting:
+            sys.stdout.write(
+                f'\nGenerating figure legend for {str(self.num_leg_cells)} most common sequences\n')
+        else:
+            sys.stdout.write(
+                f'\nGenerating figure legend for {str(self.num_leg_cells)} most common ITS2 '
+                f'type profiles\n')
+
+        for row_increment in range(min(self.n_rows, self.max_n_rows)):
+
+            if self._this_is_last_row_of_legend(row_increment=row_increment):
+                for col_increment in range(self.max_n_cols):
+                    self._plot_legend_row(row_increment=row_increment, col_increment=col_increment)
+
+                    self.column_count += 1
+            else:
+                for col_increment in range(self.last_row_len):
+                    self._plot_legend_row(row_increment=row_increment, col_increment=col_increment)
+
+                    self.column_count += 1
+
+    def _set_ylim_and_x_lim_and_invert_y_axis(self):
+        # Once we know the number of rows, we can also adjust the y axis limits
+        self.ax_to_plot_on.set_xlim(0, 100)
+        self.ax_to_plot_on.set_ylim(0, ((self.n_rows - 1) * self.y_coord_increments) + self.leg_box_depth)
+        self.ax_to_plot_on.invert_yaxis()
+
+    def _set_n_rows_and_last_row_len(self):
+        if not self.type_plotting:  # we are plotting sequences
+            col_elements_to_plot = len(self.parent_plotter.ordered_seq_names)
+        else:  # we are plotting types
+            col_elements_to_plot = len(self.parent_plotter.ordered_prof_names)
+        if col_elements_to_plot < self.num_leg_cells:
+            if col_elements_to_plot % self.max_n_cols != 0:
+                self.n_rows = int(col_elements_to_plot / self.max_n_cols) + 1
+                self.last_row_len = col_elements_to_plot % self.max_n_cols
+            else:
+                self.n_rows = int(col_elements_to_plot / self.max_n_cols)
+                self.last_row_len = self.max_n_cols
+        else:
+            self.n_rows = self.max_n_rows
+            self.last_row_len = self.max_n_cols
+
+    def _this_is_last_row_of_legend(self, row_increment):
+        return (row_increment + 1) != self.n_rows
+
+    def _remove_frames_from_axis(self):
+        self.ax_to_plot_on.set_frame_on(False)
+        self.ax_to_plot_on.get_xaxis().set_visible(False)
+        self.ax_to_plot_on.get_yaxis().set_visible(False)
+
+    def _plot_legend_row(self, row_increment, col_increment):
+        leg_box_x, leg_box_y = self._add_legend_rect(col_increment=col_increment, row_increment=row_increment)
+        self._add_legend_text(leg_box_x, leg_box_y)
+
+    def _add_legend_text(self, leg_box_x, leg_box_y):
+        text_x = leg_box_x + self.leg_box_width + (0.2 * self.leg_box_width)
+        text_y = leg_box_y + (0.5 * self.leg_box_depth)
+        if not self.type_plotting:
+            self.ax_to_plot_on.text(
+                text_x, text_y, self.parent_plotter.ordered_seq_names[self.column_count],
+                verticalalignment='center', fontsize='xx-small')
+        else:
+            type_name_to_print = self.parent_plotter.ordered_prof_names[self.column_count]
+            if len(type_name_to_print) > 15:
+                type_name_to_print = f'{type_name_to_print[:14]}...'
+
+            self.ax_to_plot_on.text(
+                text_x, text_y, type_name_to_print,
+                verticalalignment='center', fontsize='xx-small')
+
+    def _add_legend_rect(self, col_increment, row_increment):
+        leg_box_x = col_increment * self.x_coord_increments
+        leg_box_y = row_increment * self.y_coord_increments
+        if not self.type_plotting:
+            self.ax_to_plot_on.add_patch(Rectangle(
+                (leg_box_x, leg_box_y), width=self.leg_box_width, height=self.leg_box_depth,
+                color=self.parent_plotter.seq_color_dict[
+                    self.parent_plotter.ordered_seq_names[self.column_count]]))
+        else:
+            self.ax_to_plot_on.add_patch(Rectangle(
+                (leg_box_x, leg_box_y), width=self.leg_box_width, height=self.leg_box_depth,
+                color=self.parent_plotter.prof_color_dict[
+                    self.parent_plotter.ordered_prof_names[self.column_count]]))
+        return leg_box_x, leg_box_y
+
+sof = SampleOrdinationFigure(distance_plotting_format='sample_type_by_site')
 sof.print_out_sample_id_list()
 sof.plot_ordination_figure()
