@@ -71,19 +71,31 @@ class SampleOrdinationFigure:
         if self.distance_plotting_format == 'only_samples':
             self.gs = gridspec.GridSpec(2, 2)
             self.large_map_ax = plt.subplot(self.gs[:1, :1], projection=ccrs.PlateCarree(), zorder=1)
-            self.pc1_pc2_ax = plt.subplot(self.gs[1:2, :1])
-            self.pc1_pc3_ax = plt.subplot(self.gs[1:2, 1:2])
+            self.pc1_pc2_sample_dist_ax = plt.subplot(self.gs[1:2, :1])
+            self.pc1_pc3_sample_dist_ax = plt.subplot(self.gs[1:2, 1:2])
             self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2, 55, subplot_spec=self.gs[0:1, 1:2])
             self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:1, 0:55]),
                                         plt.subplot(self.sub_plot_gs[1:2, 0:29]),
                                         plt.subplot(self.sub_plot_gs[1:2, 29:])]
         elif self.distance_plotting_format == 'sample_type':
-            self.gs = gridspec.GridSpec(3, 6)
-            self.large_map_ax = plt.subplot(self.gs[:2, :3], projection=ccrs.PlateCarree(), zorder=1)
-            self.pc1_pc2_ax = plt.subplot(self.gs[2:3, :2])
-            self.pc1_pc3_ax = plt.subplot(self.gs[2:3, 2:4])
-            self.type_dist_ax = plt.subplot(self.gs[2:3, 4:6])
-            self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2, 55, subplot_spec=self.gs[0:2, 3:6])
+            relative_width_large_map = 16/38
+            relative_width_sub_plot_gs = 1/2
+            gs_rows = 4
+            # 8 for each plot, 2 for gap in between with 3 gaps = 8*4 + 3*2 = 38
+            plot_width = 8
+            gap_width = 2
+            num_dist_plots = 4
+            gs_cols = (num_dist_plots*plot_width) + ((num_dist_plots-1)*gap_width)
+            self.gs = gridspec.GridSpec(gs_rows, gs_cols)
+
+            # self.large_map_ax = plt.subplot(self.gs[:3, :int(relative_width_large_map*gs_cols)], projection=ccrs.PlateCarree(), zorder=1)
+            self.large_map_ax = plt.subplot(self.gs[:3, :int(relative_width_large_map*gs_cols)], projection=ccrs.PlateCarree(), zorder=1)
+
+            self.pc1_pc2_sample_dist_ax = plt.subplot(self.gs[3:4, :plot_width])
+            self.pc1_pc3_sample_dist_ax = plt.subplot(self.gs[3:4, plot_width + gap_width:(plot_width * 2) + gap_width])
+            self.pc1_pc2_type_dist_ax = plt.subplot(self.gs[3:4, (plot_width * 2) + (gap_width * 2):(plot_width * 3) + (gap_width * 2)])
+            self.pc1_pc3_type_dist_ax = plt.subplot(self.gs[3:4, (plot_width * 3) + (gap_width * 3):])
+            self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2, 55, subplot_spec=self.gs[0:3, int(gs_cols*relative_width_sub_plot_gs):gs_cols])
             self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:1, 0:55]),
                                         plt.subplot(self.sub_plot_gs[1:2, 0:29]),
                                         plt.subplot(self.sub_plot_gs[1:2, 29:])]
@@ -282,7 +294,8 @@ class SampleOrdinationFigure:
         # self._put_gridlines_on_zoom_map_ax()
         # self._annotate_zoom_map()
 
-        self._plot_type_dists()
+        self._plot_type_dists(ax=self.pc1_pc2_type_dist_ax, second_pc_label='PC2', second_pc_var_explained='20.6')
+        self._plot_type_dists(ax=self.pc1_pc3_type_dist_ax, second_pc_label='PC3', second_pc_var_explained='11.9')
 
         color_list, marker_list, x_list = self._plot_pc1_pc2_sample_dists()
 
@@ -527,11 +540,11 @@ class SampleOrdinationFigure:
         for i, sample_uid in enumerate(self.sample_pcoa_df.index.values.tolist()):
             y_list.append(self.sample_pcoa_df['PC3'][sample_uid])
         for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
-            self.pc1_pc3_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
-        self.pc1_pc3_ax.set_xticks([])
-        self.pc1_pc3_ax.set_yticks([])
-        self.pc1_pc3_ax.set_xlabel('PC1 - 37.9%')
-        self.pc1_pc3_ax.set_ylabel('PC3 - 14.0%')
+            self.pc1_pc3_sample_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
+        self.pc1_pc3_sample_dist_ax.set_xticks([])
+        self.pc1_pc3_sample_dist_ax.set_yticks([])
+        self.pc1_pc3_sample_dist_ax.set_xlabel('PC1 - 37.9%')
+        self.pc1_pc3_sample_dist_ax.set_ylabel('PC3 - 14.0%')
         apples = 'asdf'
 
     def _plot_pc1_pc2_sample_dists(self):
@@ -548,32 +561,33 @@ class SampleOrdinationFigure:
             color_list.append(site_color)
             marker_list.append(self.site_marker_dict[site])
         for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
-            self.pc1_pc2_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
-        self.pc1_pc2_ax.set_xticks([])
-        self.pc1_pc2_ax.set_yticks([])
-        self.pc1_pc2_ax.set_xlabel('PC1 - 37.9%')
-        self.pc1_pc2_ax.set_ylabel('PC2 - 27.5%')
+            self.pc1_pc2_sample_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
+        self.pc1_pc2_sample_dist_ax.set_xticks([])
+        self.pc1_pc2_sample_dist_ax.set_yticks([])
+        self.pc1_pc2_sample_dist_ax.set_xlabel('PC1 - 37.9%')
+        self.pc1_pc2_sample_dist_ax.set_ylabel('PC2 - 27.5%')
         apples = 'asdf'
         return color_list, marker_list, x_list
 
-    def _plot_type_dists(self):
+
+    def _plot_type_dists(self, ax, second_pc_label, second_pc_var_explained):
         x_list = []
         y_list = []
         color_list = []
         marker_list = []
         for i, type_uid in enumerate(self.type_pcoa_df.index.values.tolist()):
             x_list.append(self.type_pcoa_df['PC1'][type_uid])
-            y_list.append(self.type_pcoa_df['PC2'][type_uid])
+            y_list.append(self.type_pcoa_df[second_pc_label][type_uid])
             type_name = self.type_uid_to_type_name_dict[type_uid]
             type_color = self.prof_color_dict[type_name]
             color_list.append(type_color)
             marker_list.append('o')
         for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
-            self.type_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
-        self.type_dist_ax.set_xticks([])
-        self.type_dist_ax.set_yticks([])
-        self.type_dist_ax.set_xlabel('PC1 - 58.2%')
-        self.type_dist_ax.set_ylabel('PC2 - 20.6%')
+            ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel('PC1 - 58.2%')
+        ax.set_ylabel(f'{second_pc_label} - {second_pc_var_explained}%')
         return
 
     def _annotate_site_arrow_small_map(self, small_map_ax, head_x, head_y, tail_x, tail_y, zorder, linewidth=1):
