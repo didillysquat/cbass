@@ -24,13 +24,20 @@ from matplotlib.colors import ListedColormap
 import numpy as np
 
 class SampleOrdinationFigure:
-    def __init__(self, plot_seqs_by='type'):
+    def __init__(self, plot_seqs_by='type', distance_plotting_format='only_samples'):
         self.plot_seqs_by = plot_seqs_by
+        self.distance_plotting_format = distance_plotting_format
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.input_base_dir = os.path.join(self.root_dir, 'input')
-        self.distance_base_dir = os.path.join(self.input_base_dir, 'between_sample_distances')
-        self.dist_path = os.path.join(self.distance_base_dir, '2019-05-13_08-54-39.673986.bray_curtis_within_clade_sample_distances.dist')
-        self.pcoa_path = os.path.join(self.distance_base_dir, '2019-05-13_08-54-39.673986.PCoA_coords.csv')
+        # Btwn sample distances
+        self.distance_base_dir_samples = os.path.join(self.input_base_dir, 'between_sample_distances')
+        self.dist_path_samples = os.path.join(self.distance_base_dir_samples, '2019-05-13_08-54-39.673986.bray_curtis_within_clade_sample_distances.dist')
+        self.pcoa_samples_path = os.path.join(self.distance_base_dir_samples, '2019-05-13_08-54-39.673986.PCoA_coords.csv')
+        # Btwn type distances
+        self.distance_base_dir_types = os.path.join(self.input_base_dir, 'between_profiles', 'A')
+        self.dist_path_types = os.path.join(self.distance_base_dir_types,
+                                              '2019-02-21_08-04-43.255493.bray_curtis_within_clade_profile_distances_A.dist')
+        self.pcoa_types_path = os.path.join(self.distance_base_dir_types, '2019-02-21_08-04-43.255493.bray_curtis_profiles_PCoA_coords_A.csv')
         self.meta_path = os.path.join(self.input_base_dir, 'meta_info.xlsx')
         self.fig_out_path = os.path.join(self.root_dir, 'figures')
         os.makedirs(self.fig_out_path, exist_ok=True)
@@ -42,9 +49,13 @@ class SampleOrdinationFigure:
         self.transcript_output_path = os.path.join(self.transcript_input_base_path, 'outputs')
         self.host_kallisto_df = self._make_kallisto_df()
         self.sample_uid_to_sample_name_dict = None
-        self.sample_name_to_sample_uid_dict = {}
-        self.dist_df = self._make_dist_df()
-        self.pcoa_df = self._make_pcoa_df()
+        self.sample_name_to_sample_uid_dict = None
+        self.sample_dist_df = self._make_sample_dist_df()
+        self.sample_pcoa_df = self._make_sample_pcoa_df()
+        self.type_uid_to_type_name_dict = None
+        self.type_name_to_type_uid_dict = None
+        self.type_dist_df = self._make_type_dist_df()
+        self.type_pcoa_df = self._make_type_pcoa_df()
         self.meta_df = self._make_meta_df()
         self.seq_rel_df = self._make_seq_rel_df()
         self.ordered_seq_names = self._get_ordered_seq_names()
@@ -57,16 +68,33 @@ class SampleOrdinationFigure:
         self.prof_pal = self._get_prof_pal()
         self.prof_color_dict = self._get_prof_color_dict()
         self.fig = plt.figure(figsize=(8, 8))
-        self.gs = gridspec.GridSpec(2, 2)
-        self.large_map_ax = plt.subplot(self.gs[:1, :1], projection=ccrs.PlateCarree(), zorder=1)
+        if self.distance_plotting_format == 'only_samples':
+            self.gs = gridspec.GridSpec(2, 2)
+            self.large_map_ax = plt.subplot(self.gs[:1, :1], projection=ccrs.PlateCarree(), zorder=1)
+            self.pc1_pc2_ax = plt.subplot(self.gs[1:2, :1])
+            self.pc1_pc3_ax = plt.subplot(self.gs[1:2, 1:2])
+            self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2, 55, subplot_spec=self.gs[0:1, 1:2])
+            self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:1, 0:55]),
+                                        plt.subplot(self.sub_plot_gs[1:2, 0:29]),
+                                        plt.subplot(self.sub_plot_gs[1:2, 29:])]
+        elif self.distance_plotting_format == 'sample_type':
+            self.gs = gridspec.GridSpec(3, 6)
+            self.large_map_ax = plt.subplot(self.gs[:2, :3], projection=ccrs.PlateCarree(), zorder=1)
+            self.pc1_pc2_ax = plt.subplot(self.gs[2:3, :2])
+            self.pc1_pc3_ax = plt.subplot(self.gs[2:3, 2:4])
+            self.type_dist_ax = plt.subplot(self.gs[2:3, 4:6])
+            self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2, 55, subplot_spec=self.gs[0:2, 3:6])
+            self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:1, 0:55]),
+                                        plt.subplot(self.sub_plot_gs[1:2, 0:29]),
+                                        plt.subplot(self.sub_plot_gs[1:2, 29:])]
+
         # self.zoom_map_ax = plt.subplot(self.gs[:1, 1:2], projection=ccrs.PlateCarree(), zorder=1)
-        self.pc1_pc2_ax = plt.subplot(self.gs[1:2, :1])
+
         self.sites = ['eilat', 'kaust', 'exposed', 'protected']
         self.sites_location_dict = {'eilat': (34.934402, 29.514673), 'kaust': (38.960234, 22.303411), 'exposed': (39.04470, 22.270300), 'protected':(39.051982,22.26900)}
         self.site_color_dict = {'eilat':'white', 'kaust': 'white', 'exposed': 'white', 'protected':'black'}
-        self.pc1_pc3_ax = plt.subplot(self.gs[1:2, 1:2])
-        self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2,55, subplot_spec=self.gs[0:1, 1:2])
-        self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:1,0:55]), plt.subplot(self.sub_plot_gs[1:2,0:29]), plt.subplot(self.sub_plot_gs[1:2,29:])]
+
+
         # self.sub_plot_profiles_axarr = [plt.subplot(self.sub_plot_gs[1:2, 0:1]), plt.subplot(self.sub_plot_gs[3:4, 0:1])]
         self.site_marker_dict = {'eilat': 'o', 'kaust': '^', 'protected': '+', 'exposed': 's' }
 
@@ -156,8 +184,8 @@ class SampleOrdinationFigure:
 
         return df.astype('float')
 
-    def _make_dist_df(self):
-        with open(self.dist_path, 'r') as f:
+    def _make_sample_dist_df(self):
+        with open(self.dist_path_samples, 'r') as f:
             dist_data = [out_line.split('\t') for out_line in [line.rstrip() for line in f][1:]]
 
         df = pd.DataFrame(dist_data)
@@ -170,8 +198,29 @@ class SampleOrdinationFigure:
 
         return df.astype(dtype='float')
 
-    def _make_pcoa_df(self):
-        df = pd.read_csv(filepath_or_buffer=self.pcoa_path, sep=',', header=0, index_col=0, skipfooter=1)
+    def _make_sample_pcoa_df(self):
+        df = pd.read_csv(filepath_or_buffer=self.pcoa_samples_path, sep=',', header=0, index_col=0, skipfooter=1)
+        df.index = df.index.astype('int')
+        return df
+
+    def _make_type_dist_df(self):
+        with open(self.dist_path_types, 'r') as f:
+            dist_data = [out_line.split('\t') for out_line in [line.rstrip() for line in f][1:]]
+
+        df = pd.DataFrame(dist_data)
+        self.type_uid_to_type_name_dict = {int(uid): name for name, uid in
+                                               zip(df[0].values.tolist(), df[1].values.tolist())}
+        self.type_name_to_type_uid_dict = {name: uid for uid, name in self.type_uid_to_type_name_dict.items()}
+        df.drop(columns=0, inplace=True)
+        df.set_index(keys=1, drop=True, inplace=True)
+        df.index = df.index.astype('int')
+        df.columns = df.index.values.tolist()
+
+        return df.astype(dtype='float')
+
+    def _make_type_pcoa_df(self):
+        df = pd.read_csv(filepath_or_buffer=self.pcoa_types_path, sep=',', header=0, index_col=1, skipfooter=1)
+        df.drop(columns='sample', inplace=True)
         df.index = df.index.astype('int')
         return df
 
@@ -213,7 +262,14 @@ class SampleOrdinationFigure:
 
         return df
 
+    def print_out_sample_id_list(self):
+        with open(os.path.join(self.input_base_dir, 'sample_id_list_84'), 'w') as f:
+            f.write(','.join([str(_) for _ in self.seq_rel_df.index.values.tolist()]))
+        apples = 'asdf'
+
+
     def plot_ordination_figure(self):
+
         self.large_map_ax.set_extent(extents=(33.0, 41.0, 22.0, 30.0))
         land_110m, ocean_110m, boundary_110m = self._get_naural_earth_features_big_map()
         # self._draw_natural_earth_features_big_map(land_110m, ocean_110m,boundary_110m)
@@ -225,6 +281,8 @@ class SampleOrdinationFigure:
         # self._draw_natural_earth_features_zoom_map(land_10m, ocean_10m)
         # self._put_gridlines_on_zoom_map_ax()
         # self._annotate_zoom_map()
+
+        self._plot_type_dists()
 
         color_list, marker_list, x_list = self._plot_pc1_pc2_sample_dists()
 
@@ -466,10 +524,10 @@ class SampleOrdinationFigure:
 
     def _plot_pc1_pc3_sample_dists(self, color_list, marker_list, x_list):
         y_list = []
-        for i, sample_uid in enumerate(self.pcoa_df.index.values.tolist()):
-            y_list.append(self.pcoa_df['PC3'][sample_uid])
+        for i, sample_uid in enumerate(self.sample_pcoa_df.index.values.tolist()):
+            y_list.append(self.sample_pcoa_df['PC3'][sample_uid])
         for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
-            self.pc1_pc3_ax.scatter(x, y, c=c, marker=m, edgecolors='black')
+            self.pc1_pc3_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
         self.pc1_pc3_ax.set_xticks([])
         self.pc1_pc3_ax.set_yticks([])
         self.pc1_pc3_ax.set_xlabel('PC1 - 37.9%')
@@ -481,22 +539,42 @@ class SampleOrdinationFigure:
         y_list = []
         color_list = []
         marker_list = []
-        for i, sample_uid in enumerate(self.pcoa_df.index.values.tolist()):
-            x_list.append(self.pcoa_df['PC1'][sample_uid])
-            y_list.append(self.pcoa_df['PC2'][sample_uid])
+        for i, sample_uid in enumerate(self.sample_pcoa_df.index.values.tolist()):
+            x_list.append(self.sample_pcoa_df['PC1'][sample_uid])
+            y_list.append(self.sample_pcoa_df['PC2'][sample_uid])
             sample_name = self.sample_uid_to_sample_name_dict[sample_uid]
             site = self.meta_df.loc[sample_name, 'site']
             site_color = self.site_color_dict[site]
             color_list.append(site_color)
             marker_list.append(self.site_marker_dict[site])
         for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
-            self.pc1_pc2_ax.scatter(x, y, c=c, marker=m, edgecolors='black')
+            self.pc1_pc2_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
         self.pc1_pc2_ax.set_xticks([])
         self.pc1_pc2_ax.set_yticks([])
         self.pc1_pc2_ax.set_xlabel('PC1 - 37.9%')
         self.pc1_pc2_ax.set_ylabel('PC2 - 27.5%')
         apples = 'asdf'
         return color_list, marker_list, x_list
+
+    def _plot_type_dists(self):
+        x_list = []
+        y_list = []
+        color_list = []
+        marker_list = []
+        for i, type_uid in enumerate(self.type_pcoa_df.index.values.tolist()):
+            x_list.append(self.type_pcoa_df['PC1'][type_uid])
+            y_list.append(self.type_pcoa_df['PC2'][type_uid])
+            type_name = self.type_uid_to_type_name_dict[type_uid]
+            type_color = self.prof_color_dict[type_name]
+            color_list.append(type_color)
+            marker_list.append('o')
+        for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
+            self.type_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
+        self.type_dist_ax.set_xticks([])
+        self.type_dist_ax.set_yticks([])
+        self.type_dist_ax.set_xlabel('PC1 - 58.2%')
+        self.type_dist_ax.set_ylabel('PC2 - 20.6%')
+        return
 
     def _annotate_site_arrow_small_map(self, small_map_ax, head_x, head_y, tail_x, tail_y, zorder, linewidth=1):
         # draw arrows on plot
@@ -855,5 +933,6 @@ class SampleOrdinationFigure:
             "#98D058", "#6C8F7D", "#D7BFC2", "#3C3E6E", "#D83D66", "#2F5D9B", "#6C5E46", "#D25B88", "#5B656C",
             "#00B57F",
             "#545C46", "#866097", "#365D25", "#252F99", "#00CCFF", "#674E60", "#FC009C", "#92896B"]
-sof = SampleOrdinationFigure()
+sof = SampleOrdinationFigure(distance_plotting_format='sample_type')
+sof.print_out_sample_id_list()
 sof.plot_ordination_figure()
