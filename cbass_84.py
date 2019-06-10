@@ -140,7 +140,7 @@ class SampleOrdinationFigure:
 
 
         # self.sub_plot_profiles_axarr = [plt.subplot(self.sub_plot_gs[1:2, 0:1]), plt.subplot(self.sub_plot_gs[3:4, 0:1])]
-        self.site_marker_dict = {'eilat': 'o', 'kaust': '^', 'protected': '+', 'exposed': 's' }
+        self.site_marker_dict = {'eilat': '+', 'kaust': '^', 'protected': 'o', 'exposed': 's' }
 
     def _make_kallisto_df(self):
         # with open(self.transcript_kallisto_matrix_path, 'r') as f:

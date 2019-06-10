@@ -85,7 +85,7 @@ class SampleOrdinationFigure:
         # we will use GridSpecFromSubplotSpec to set up subplots for each of the sample distances and type distances
         # and then below we will have the seq data. for the main plots we will go 5 down 2 across
 
-        self.fig = plt.figure(figsize=(8, 8))
+        self.fig = plt.figure(figsize=(8, 4))
 
         gs_rows = 5
         gs_cols = 2
@@ -115,7 +115,73 @@ class SampleOrdinationFigure:
         self.sites_location_dict = {'exposed': (39.04470, 22.270300), 'protected':(39.051982,22.26900)}
         self.site_color_dict = {'exposed': 'white', 'protected':'black'}
 
-        self.site_marker_dict = {'protected': '+', 'exposed': 's' }
+        self.site_marker_dict = {'protected': 'o', 'exposed': 's'}
+        self.classic_cbass_colour_dict = {'Classic': '#808080', 'CBASS': '#FFFFFF'}
+
+
+    def plot_ordination_figure(self):
+
+        color_list, marker_list, x_list = self._plot_pc1_pc2_sample_dists()
+
+        self._plot_pc1_pc3_sample_dists(color_list, marker_list, x_list)
+
+        self._plot_type_dists(ax=self.pc1_pc2_type_dist_ax, second_pc_label='PC2', second_pc_var_explained='20.6')
+        self._plot_type_dists(ax=self.pc1_pc3_type_dist_ax, second_pc_label='PC3', second_pc_var_explained='11.9')
+
+
+
+        if self.distance_plotting_format == 'sample_type_by_site':
+            self._seq_and_type_plotting_site_ordered()
+        else:
+            self._seq_and_type_plotting_type_ordered()
+
+        apples = 'asdf'
+        print('saving .png')
+        plt.savefig(os.path.join(self.fig_out_path, 'map_pcoa_sample_type_site.png'), dpi=1200)
+        print('saving .svg')
+        plt.savefig(os.path.join(self.fig_out_path, 'map_pcoa_sample_type_site.svg'), dpi=1200)
+
+
+    def _plot_pc1_pc2_sample_dists(self):
+        x_list = []
+        y_list = []
+        color_list = []
+        marker_list = []
+        for i, sample_uid in enumerate(self.sample_pcoa_df.index.values.tolist()):
+            sample_name = self.sample_uid_to_sample_name_dict[sample_uid]
+            classic_cbass = self.meta_df.loc[sample_name, 'cbass_classic']
+            if classic_cbass == 'n/a':
+                continue
+            site = self.meta_df.loc[sample_name, 'site']
+            site_color = self.classic_cbass_colour_dict[classic_cbass]
+            color_list.append(site_color)
+            marker_list.append(self.site_marker_dict[site])
+            x_list.append(self.sample_pcoa_df['PC1'][sample_uid])
+            y_list.append(self.sample_pcoa_df['PC2'][sample_uid])
+
+        for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
+            self.pc1_pc2_sample_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
+        self.pc1_pc2_sample_dist_ax.set_xticks([])
+        self.pc1_pc2_sample_dist_ax.set_yticks([])
+        self.pc1_pc2_sample_dist_ax.set_xlabel('PC1 - 84.9%')
+        self.pc1_pc2_sample_dist_ax.set_ylabel('PC2 - 12.3%')
+        return color_list, marker_list, x_list
+
+    def _plot_pc1_pc3_sample_dists(self, color_list, marker_list, x_list):
+        y_list = []
+
+        for i, sample_uid in enumerate(self.sample_pcoa_df.index.values.tolist()):
+            sample_name = self.sample_uid_to_sample_name_dict[sample_uid]
+            classic_cbass = self.meta_df.loc[sample_name, 'cbass_classic']
+            if classic_cbass == 'n/a':
+                continue
+            y_list.append(self.sample_pcoa_df['PC3'][sample_uid])
+        for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
+            self.pc1_pc3_sample_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
+        self.pc1_pc3_sample_dist_ax.set_xticks([])
+        self.pc1_pc3_sample_dist_ax.set_yticks([])
+        self.pc1_pc3_sample_dist_ax.set_xlabel('PC1 - 84.9%')
+        self.pc1_pc3_sample_dist_ax.set_ylabel('PC3 - 01.1%')
 
     def _get_prof_pal(self):
         return ['#%02x%02x%02x' % rgb_tup for rgb_tup in
@@ -368,3 +434,4 @@ class SampleOrdinationFigure:
         return new_colours
 
 sof = SampleOrdinationFigure(distance_plotting_format='sample_type_by_site')
+sof.plot_ordination_figure()
