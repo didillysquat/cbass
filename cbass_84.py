@@ -29,7 +29,7 @@ class SampleOrdinationFigure:
         self.seq_type_arrangement = seq_type_arrangement
         self.distance_plotting_format = distance_plotting_format
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
-        self.input_base_dir = os.path.join(self.root_dir, 'input')
+        self.input_base_dir = os.path.join(self.root_dir, '84', 'input')
         # Btwn sample distances
         self.distance_base_dir_samples = os.path.join(self.input_base_dir, 'between_sample_distances')
         self.dist_path_samples = os.path.join(self.distance_base_dir_samples, '2019-05-13_08-54-39.673986.bray_curtis_within_clade_sample_distances.dist')
@@ -40,7 +40,7 @@ class SampleOrdinationFigure:
                                               '2019-02-21_08-04-43.255493.bray_curtis_within_clade_profile_distances_A.dist')
         self.pcoa_types_path = os.path.join(self.distance_base_dir_types, '2019-02-21_08-04-43.255493.bray_curtis_profiles_PCoA_coords_A.csv')
         self.meta_path = os.path.join(self.input_base_dir, 'meta_info.xlsx')
-        self.fig_out_path = os.path.join(self.root_dir, 'figures')
+        self.fig_out_path = os.path.join(self.root_dir,'84', 'figures')
         os.makedirs(self.fig_out_path, exist_ok=True)
         self.profile_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.profiles.relative.txt')
         self.seq_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.seqs.relative.txt')
