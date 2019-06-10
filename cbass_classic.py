@@ -32,14 +32,14 @@ class SampleOrdinationFigure:
         self.input_base_dir = os.path.join(self.root_dir, 'classic', 'input')
 
         # sequences abundances
-        self.seq_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-06-09_00-56-14.628598.seqs.relative.txt')
+        self.seq_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-06-10_07-15-02.209061.seqs.relative.txt')
         self.seq_rel_df = self._make_seq_rel_df()
         self.ordered_seq_names = self._get_ordered_seq_names()
         self.seq_pal = self._get_colour_list()
         self.seq_color_dict = self._get_seq_color_dict()
 
         # profile abundances
-        self.profile_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-06-09_00-56-14.628598.profiles.relative.txt')
+        self.profile_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-06-10_07-15-02.209061.profiles.relative.txt')
         self.profile_uid_to_profile_name_dict = {}
         self.profile_name_to_profile_uid_dict = {}
         self.prof_rel_df = self._make_prof_rel_df()
@@ -49,8 +49,8 @@ class SampleOrdinationFigure:
 
         # Btwn sample distances
         self.distance_base_dir_samples = os.path.join(self.input_base_dir, 'between_sample_distances')
-        self.dist_path_samples = os.path.join(self.distance_base_dir_samples, 'A','2019-06-09_00-56-14.628598.bray_curtis_sample_distances_A.dist')
-        self.pcoa_samples_path = os.path.join(self.distance_base_dir_samples, 'A','2019-06-09_00-56-14.628598.bray_curtis_samples_PCoA_coords_A.csv')
+        self.dist_path_samples = os.path.join(self.distance_base_dir_samples, 'A','2019-06-10_07-15-02.209061.bray_curtis_sample_distances_A.dist')
+        self.pcoa_samples_path = os.path.join(self.distance_base_dir_samples, 'A','2019-06-10_07-15-02.209061.bray_curtis_samples_PCoA_coords_A.csv')
         self.sample_uid_to_sample_name_dict = None
         self.sample_name_to_sample_uid_dict = None
         self.sample_dist_df = self._make_sample_dist_df()
@@ -59,8 +59,8 @@ class SampleOrdinationFigure:
         # Btwn type distances
         self.distance_base_dir_types = os.path.join(self.input_base_dir, 'between_profile_distances', 'A')
         self.dist_path_types = os.path.join(self.distance_base_dir_types,
-                                              '2019-06-09_00-56-14.628598.bray_curtis_within_clade_profile_distances_A.dist')
-        self.pcoa_types_path = os.path.join(self.distance_base_dir_types, '2019-06-09_00-56-14.628598.bray_curtis_profiles_PCoA_coords_A.csv')
+                                              '2019-06-10_07-15-02.209061.bray_curtis_within_clade_profile_distances_A.dist')
+        self.pcoa_types_path = os.path.join(self.distance_base_dir_types, '2019-06-10_07-15-02.209061.bray_curtis_profiles_PCoA_coords_A.csv')
         self.type_uid_to_type_name_dict = None
         self.type_name_to_type_uid_dict = None
         self.type_dist_df = self._make_type_dist_df()
@@ -125,8 +125,8 @@ class SampleOrdinationFigure:
 
         self._plot_pc1_pc3_sample_dists(color_list, marker_list, x_list)
 
-        self._plot_type_dists(ax=self.pc1_pc2_type_dist_ax, second_pc_label='PC2', second_pc_var_explained='20.6')
-        self._plot_type_dists(ax=self.pc1_pc3_type_dist_ax, second_pc_label='PC3', second_pc_var_explained='11.9')
+        self._plot_type_dists(ax=self.pc1_pc2_profile_dist_ax, second_pc_label='PC2', second_pc_var_explained='13.9')
+        self._plot_type_dists(ax=self.pc1_pc3_profile_dist_ax, second_pc_label='PC3', second_pc_var_explained='00.7')
 
 
 
@@ -141,6 +141,25 @@ class SampleOrdinationFigure:
         print('saving .svg')
         plt.savefig(os.path.join(self.fig_out_path, 'map_pcoa_sample_type_site.svg'), dpi=1200)
 
+    def _plot_type_dists(self, ax, second_pc_label, second_pc_var_explained):
+        x_list = []
+        y_list = []
+        color_list = []
+        marker_list = []
+        for i, type_uid in enumerate(self.type_pcoa_df.index.values.tolist()):
+            x_list.append(self.type_pcoa_df['PC1'][type_uid])
+            y_list.append(self.type_pcoa_df[second_pc_label][type_uid])
+            type_name = self.type_uid_to_type_name_dict[type_uid]
+            type_color = self.prof_color_dict[type_name]
+            color_list.append(type_color)
+            marker_list.append('o')
+        for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
+            ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel('PC1 - 84.9%')
+        ax.set_ylabel(f'{second_pc_label} - {second_pc_var_explained}%')
+        return
 
     def _plot_pc1_pc2_sample_dists(self):
         x_list = []
