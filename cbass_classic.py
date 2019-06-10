@@ -82,78 +82,40 @@ class SampleOrdinationFigure:
 
         # Figure setup
         # have it set up so that we can transfer this over to the cbass_84 script.
+        # we will use GridSpecFromSubplotSpec to set up subplots for each of the sample distances and type distances
+        # and then below we will have the seq data. for the main plots we will go 5 down 2 across
+
         self.fig = plt.figure(figsize=(8, 8))
-        if self.distance_plotting_format == 'only_samples':
-            self.gs = gridspec.GridSpec(2, 2)
-            self.large_map_ax = plt.subplot(self.gs[:1, :1], projection=ccrs.PlateCarree(), zorder=1)
-            self.pc1_pc2_sample_dist_ax = plt.subplot(self.gs[1:2, :1])
-            self.pc1_pc3_sample_dist_ax = plt.subplot(self.gs[1:2, 1:2])
-            self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2, 55, subplot_spec=self.gs[0:1, 1:2])
-            self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:1, 0:55]),
-                                        plt.subplot(self.sub_plot_gs[1:2, 0:29]),
-                                        plt.subplot(self.sub_plot_gs[1:2, 29:])]
-        elif self.distance_plotting_format == 'sample_type':
-            relative_width_large_map = 16/38
-            relative_width_sub_plot_gs = 1/2
-            gs_rows = 4
-            # 8 for each plot, 2 for gap in between with 3 gaps = 8*4 + 3*2 = 38
-            plot_width = 8
-            gap_width = 2
-            num_dist_plots = 4
-            gs_cols = (num_dist_plots*plot_width) + ((num_dist_plots-1)*gap_width)
-            self.gs = gridspec.GridSpec(gs_rows, gs_cols)
 
-            # self.large_map_ax = plt.subplot(self.gs[:3, :int(relative_width_large_map*gs_cols)], projection=ccrs.PlateCarree(), zorder=1)
-            self.large_map_ax = plt.subplot(self.gs[:3, :int(relative_width_large_map*gs_cols)], projection=ccrs.PlateCarree(), zorder=1)
+        gs_rows = 5
+        gs_cols = 2
+        self.gs = gridspec.GridSpec(gs_rows, gs_cols)
 
-            self.pc1_pc2_sample_dist_ax = plt.subplot(self.gs[3:4, :plot_width])
-            self.pc1_pc3_sample_dist_ax = plt.subplot(self.gs[3:4, plot_width + gap_width:(plot_width * 2) + gap_width])
-            self.pc1_pc2_type_dist_ax = plt.subplot(self.gs[3:4, (plot_width * 2) + (gap_width * 2):(plot_width * 3) + (gap_width * 2)])
-            self.pc1_pc3_type_dist_ax = plt.subplot(self.gs[3:4, (plot_width * 3) + (gap_width * 3):])
-            self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2, 55, subplot_spec=self.gs[0:3, int(gs_cols*relative_width_sub_plot_gs):gs_cols])
-            self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:1, 0:55]),
-                                        plt.subplot(self.sub_plot_gs[1:2, 0:29]),
-                                        plt.subplot(self.sub_plot_gs[1:2, 29:])]
-        elif self.distance_plotting_format == 'sample_type_by_site':
-            relative_width_large_map = 16 / 38
-            relative_width_sub_plot_gs = 1 / 2
-            gs_rows = 4
-            # 8 for each plot, 2 for gap in between with 3 gaps = 8*4 + 3*2 = 38
-            plot_width = 8
-            gap_width = 2
-            num_dist_plots = 4
-            gs_cols = (num_dist_plots * plot_width) + ((num_dist_plots - 1) * gap_width)
-            self.gs = gridspec.GridSpec(gs_rows, gs_cols)
+        # sample_distances_ordinations and sample_profile_ordinations
+        self.sample_ordination_sub_gs = gridspec.GridSpecFromSubplotSpec(1, 4, subplot_spec=self.gs[:2, :])
+        self.pc1_pc2_sample_dist_ax = plt.subplot(self.sample_ordination_sub_gs[0, :1])
+        self.pc1_pc3_sample_dist_ax = plt.subplot(self.sample_ordination_sub_gs[0, 1:2])
+        self.pc1_pc2_profile_dist_ax = plt.subplot(self.sample_ordination_sub_gs[0, 2:3])
+        self.pc1_pc3_profile_dist_ax = plt.subplot(self.sample_ordination_sub_gs[0, 3:])
 
-            # self.large_map_ax = plt.subplot(self.gs[:3, :int(relative_width_large_map*gs_cols)], projection=ccrs.PlateCarree(), zorder=1)
-            self.large_map_ax = plt.subplot(self.gs[:3, :int(relative_width_large_map * gs_cols)],
-                                            projection=ccrs.PlateCarree(), zorder=1)
+        # sequencing and profile info
+        self.sample_seq_info__sub_gs = gridspec.GridSpecFromSubplotSpec(5, 4, subplot_spec=self.gs[2:, :])
+        self.sample_seq_info_axarr = [plt.subplot(self.sample_seq_info__sub_gs[:3, :1]),
+                                    plt.subplot(self.sample_seq_info__sub_gs[:3, 1:2]),
+                                    plt.subplot(self.sample_seq_info__sub_gs[:3, 2:3]),
+                                    plt.subplot(self.sample_seq_info__sub_gs[:3, 3:])]
+        self.sample_seq_info_legend_axarr = [
+            plt.subplot(self.sample_seq_info__sub_gs[3:, :2]),
+            plt.subplot(self.sample_seq_info__sub_gs[3:, 2:])]
 
-            self.pc1_pc2_sample_dist_ax = plt.subplot(self.gs[3:4, :plot_width])
-            self.pc1_pc3_sample_dist_ax = plt.subplot(self.gs[3:4, plot_width + gap_width:(plot_width * 2) + gap_width])
-            self.pc1_pc2_type_dist_ax = plt.subplot(
-                self.gs[3:4, (plot_width * 2) + (gap_width * 2):(plot_width * 3) + (gap_width * 2)])
-            self.pc1_pc3_type_dist_ax = plt.subplot(self.gs[3:4, (plot_width * 3) + (gap_width * 3):])
-            site_plot_width = 21
-            site_gap_width = 4
-            sub_plot_gs_width = ((2*site_plot_width) + site_gap_width)
-            self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(6, sub_plot_gs_width, subplot_spec=self.gs[0:3, int(
-                gs_cols * relative_width_sub_plot_gs):gs_cols])
-            self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:2, :site_plot_width]),
-                                        plt.subplot(self.sub_plot_gs[0:2, site_plot_width + site_gap_width:]),
-                                        plt.subplot(self.sub_plot_gs[2:4, :site_plot_width]),
-                                        plt.subplot(self.sub_plot_gs[2:4, site_plot_width + site_gap_width:]),
-                                        plt.subplot(self.sub_plot_gs[4:5, :]),
-                                        plt.subplot(self.sub_plot_gs[5:6, :]) ]
 
         # self.zoom_map_ax = plt.subplot(self.gs[:1, 1:2], projection=ccrs.PlateCarree(), zorder=1)
 
-        self.sites = ['eilat', 'kaust', 'exposed', 'protected']
-        self.sites_location_dict = {'eilat': (34.934402, 29.514673), 'kaust': (38.960234, 22.303411), 'exposed': (39.04470, 22.270300), 'protected':(39.051982,22.26900)}
-        self.site_color_dict = {'eilat':'white', 'kaust': 'white', 'exposed': 'white', 'protected':'black'}
+        self.sites = ['exposed', 'protected']
+        self.sites_location_dict = {'exposed': (39.04470, 22.270300), 'protected':(39.051982,22.26900)}
+        self.site_color_dict = {'exposed': 'white', 'protected':'black'}
 
-        # self.sub_plot_profiles_axarr = [plt.subplot(self.sub_plot_gs[1:2, 0:1]), plt.subplot(self.sub_plot_gs[3:4, 0:1])]
-        self.site_marker_dict = {'eilat': 'o', 'kaust': '^', 'protected': '+', 'exposed': 's' }
+        self.site_marker_dict = {'protected': '+', 'exposed': 's' }
 
     def _get_prof_pal(self):
         return ['#%02x%02x%02x' % rgb_tup for rgb_tup in
