@@ -5,7 +5,7 @@ publication of what I believe is the cbass_84 data set.
 import os
 import pandas as pd
 import matplotlib as mpl
-mpl.use('Agg')
+mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 # NB the pip cartopy install seems to be broken as it doesn't install the required libararies.
 # The solution was to install using conda. conda install cartopy.
@@ -846,9 +846,9 @@ class SampleOrdinationFigure:
 
     def _get_naural_earth_features_big_map(self):
         land_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='land',
-                                                       scale='10m')
+                                                       scale='50m')
         ocean_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='ocean',
-                                                        scale='10m')
+                                                        scale='50m')
         boundary_110m = cartopy.feature.NaturalEarthFeature(category='cultural',
                                                             name='admin_0_boundary_lines_land', scale='110m')
         return land_110m, ocean_110m, boundary_110m
