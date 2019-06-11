@@ -24,7 +24,7 @@ from matplotlib.colors import ListedColormap
 import numpy as np
 
 class SampleOrdinationFigure:
-    def __init__(self, plot_seqs_by='type', distance_plotting_format='only_samples', seq_type_arrangement='by_site'):
+    def __init__(self, plot_seqs_by='type', distance_plotting_format='only_samples', seq_type_arrangement='by_site', dynamic_profile_colour=False):
         self.plot_seqs_by = plot_seqs_by
         self.seq_type_arrangement = seq_type_arrangement
         self.distance_plotting_format = distance_plotting_format
@@ -44,8 +44,11 @@ class SampleOrdinationFigure:
         self.profile_name_to_profile_uid_dict = {}
         self.prof_rel_df = self._make_prof_rel_df()
         self.ordered_prof_names = self._get_ordered_prof_names()
-        self.prof_pal = self._get_prof_pal()
-        self.prof_color_dict = self._get_prof_color_dict()
+        if dynamic_profile_colour:
+            self.prof_pal = self._get_prof_pal()
+            self.prof_color_dict = self._get_prof_color_dict()
+        else:
+            self.prof_color_dict = self._get_hardcoded_profile_colours()
 
         # Btwn sample distances
         self.distance_base_dir_samples = os.path.join(self.input_base_dir, 'between_sample_distances')
@@ -118,6 +121,9 @@ class SampleOrdinationFigure:
 
         self.site_marker_dict = {'protected': 'o', 'exposed': 's'}
         self.classic_cbass_colour_dict = {'Classic': '#808080', 'CBASS': '#FFFFFF'}
+
+    def _get_hardcoded_profile_colours(self):
+        return {'A1g/A1-A1l-A1cr-A1o-A1dp-A1p-A1dq-A1dn': '#ed8ed8', 'A1-A1ds-A1z-A1dr-A1bh': '#8ba4d1', 'A1-A1dm': '#aef686', 'A1-A1z-A1do': '#badffb', 'A1-A1du-A1z-A1ds-A1dr': '#fcad97', 'A1-A1z': '#8cfdc4'}
 
 
     def plot_ordination_figure(self):
@@ -332,7 +338,7 @@ class SampleOrdinationFigure:
 
     def _get_prof_pal(self):
         return ['#%02x%02x%02x' % rgb_tup for rgb_tup in
-                         self.create_colour_list(mix_col=(255, 255, 255), sq_dist_cutoff=1000, num_cols=6,
+                         self.create_colour_list(mix_col=(255, 255, 255), sq_dist_cutoff=5000, num_cols=6,
                                                  time_out_iterations=100000)]
 
     def _get_prof_color_dict(self):
