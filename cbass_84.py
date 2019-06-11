@@ -536,6 +536,24 @@ class SampleOrdinationFigure:
         self._plot_seq_and_type_legend(ax=self.sub_plot_seqs_axarr[4])
         self._plot_seq_and_type_legend(ax=self.sub_plot_seqs_axarr[5], type_plotting=True)
 
+    def _plot_seq_and_type_ax_site_ordered(self, sample_order):
+        # We plot the first 55 because this is clean break in the ITS2 type profiles
+        for i, site in enumerate(self.sites):
+            # ordered sample list should be the samples of the site in the order of sample_order
+            ordered_sample_list = [sample_uid for sample_uid in sample_order if self.meta_df.at[self.sample_uid_to_sample_name_dict[sample_uid], 'site'] == site]
+            num_sampls_first_plot = len(ordered_sample_list)
+            width = 1 / num_sampls_first_plot
+            if i == 1 or i == 3:
+                y_lab=False
+            else:
+                y_lab=True
+            self._plot_seqs_on_ax(
+                ordered_sample_list=ordered_sample_list,
+                ax=self.sub_plot_seqs_axarr[i],
+                width=width,
+                x_ind_list=[i * width for i in range(num_sampls_first_plot)],
+                num_samples_in_first_plot=num_sampls_first_plot, y_lab=y_lab, site=site)
+
     def _plot_seq_and_type_legend(self, ax, type_plotting=False):
         leg_plotter = LegendPlotter(parent_plotter=self, ax=ax, type_plotting=type_plotting)
         leg_plotter.plot_legend_seqs()
@@ -558,23 +576,7 @@ class SampleOrdinationFigure:
             x_ind_list=[i * width for i in range(len(sample_order) - num_sampls_first_plot)],
             num_samples_in_first_plot=num_sampls_first_plot)
 
-    def _plot_seq_and_type_ax_site_ordered(self, sample_order):
-        # We plot the first 55 because this is clean break in the ITS2 type profiles
-        for i, site in enumerate(self.sites):
-            # ordered sample list should be the samples of the site in the order of sample_order
-            ordered_sample_list = [sample_uid for sample_uid in sample_order if self.meta_df.at[self.sample_uid_to_sample_name_dict[sample_uid], 'site'] == site]
-            num_sampls_first_plot = len(ordered_sample_list)
-            width = 1 / num_sampls_first_plot
-            if i == 1 or i == 3:
-                y_lab=False
-            else:
-                y_lab=True
-            self._plot_seqs_on_ax(
-                ordered_sample_list=ordered_sample_list,
-                ax=self.sub_plot_seqs_axarr[i],
-                width=width,
-                x_ind_list=[i * width for i in range(num_sampls_first_plot)],
-                num_samples_in_first_plot=num_sampls_first_plot, y_lab=y_lab, site=site)
+
 
     def _get_sample_order(self):
         sample_plotting_order_matrix = [[[] for _ in range(len(self.sites))] for _ in
