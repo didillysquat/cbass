@@ -23,518 +23,115 @@ from matplotlib.collections import PatchCollection
 from matplotlib.colors import ListedColormap
 import numpy as np
 
+
+
 class SampleOrdinationFigure:
-    def __init__(self, plot_seqs_by='type', distance_plotting_format='only_samples', seq_type_arrangement='by_site'):
-        self.plot_seqs_by = plot_seqs_by
-        self.seq_type_arrangement = seq_type_arrangement
-        self.distance_plotting_format = distance_plotting_format
+    def __init__(self, dynamic_profile_colour=False):
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.input_base_dir = os.path.join(self.root_dir, '84', 'input')
+
         # Btwn sample distances
         self.distance_base_dir_samples = os.path.join(self.input_base_dir, 'between_sample_distances')
         self.dist_path_samples = os.path.join(self.distance_base_dir_samples, '2019-05-13_08-54-39.673986.bray_curtis_within_clade_sample_distances.dist')
         self.pcoa_samples_path = os.path.join(self.distance_base_dir_samples, '2019-05-13_08-54-39.673986.PCoA_coords.csv')
+        self.sample_uid_to_sample_name_dict = None
+        self.sample_name_to_sample_uid_dict = None
+        self.sample_dist_df = self._make_sample_dist_df()
+        self.sample_pcoa_df = self._make_sample_pcoa_df()
+
+
         # Btwn type distances
         self.distance_base_dir_types = os.path.join(self.input_base_dir, 'between_profiles', 'A')
         self.dist_path_types = os.path.join(self.distance_base_dir_types,
                                               '2019-02-21_08-04-43.255493.bray_curtis_within_clade_profile_distances_A.dist')
         self.pcoa_types_path = os.path.join(self.distance_base_dir_types, '2019-02-21_08-04-43.255493.bray_curtis_profiles_PCoA_coords_A.csv')
-        self.meta_path = os.path.join(self.input_base_dir, 'meta_info.xlsx')
-        self.fig_out_path = os.path.join(self.root_dir,'84', 'figures')
-        os.makedirs(self.fig_out_path, exist_ok=True)
-        self.profile_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.profiles.relative.txt')
-        self.seq_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.seqs.relative.txt')
-        self.gis_input_base_path = os.path.join(self.input_base_dir, 'gis')
-        self.transcript_input_base_path = os.path.join(self.input_base_dir, 'transcripts')
-        self.transcript_kallisto_matrix_path = os.path.join(self.transcript_input_base_path, 'spis_kallisto_TPM_norm_matrix.txt')
-        self.transcript_output_path = os.path.join(self.transcript_input_base_path, 'outputs')
-        self.host_kallisto_df = self._make_kallisto_df()
-        self.sample_uid_to_sample_name_dict = None
-        self.sample_name_to_sample_uid_dict = None
-        self.sample_dist_df = self._make_sample_dist_df()
-        self.sample_pcoa_df = self._make_sample_pcoa_df()
         self.type_uid_to_type_name_dict = None
         self.type_name_to_type_uid_dict = None
         self.type_dist_df = self._make_type_dist_df()
         self.type_pcoa_df = self._make_type_pcoa_df()
-        self.meta_df = self._make_meta_df()
-        self.seq_rel_df = self._make_seq_rel_df()
-        self.ordered_seq_names = self._get_ordered_seq_names()
-        self.seq_pal = self._get_colour_list()
-        self.seq_color_dict = self._get_seq_color_dict()
+
+        # figure output
+        self.fig_out_path = os.path.join(self.root_dir,'84', 'figures')
+        os.makedirs(self.fig_out_path, exist_ok=True)
+
+        # profile abundances
+        self.profile_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.profiles.relative.txt')
         self.profile_uid_to_profile_name_dict = {}
         self.profile_name_to_profile_uid_dict = {}
         self.prof_rel_df = self._make_prof_rel_df()
         self.ordered_prof_names = self._get_ordered_prof_names()
-        self.prof_pal = self._get_prof_pal()
-        self.prof_color_dict = self._get_prof_color_dict()
-        self.fig = plt.figure(figsize=(8, 8))
-        if self.distance_plotting_format == 'only_samples':
-            self.gs = gridspec.GridSpec(2, 2)
-            self.large_map_ax = plt.subplot(self.gs[:1, :1], projection=ccrs.PlateCarree(), zorder=1)
-            self.pc1_pc2_sample_dist_ax = plt.subplot(self.gs[1:2, :1])
-            self.pc1_pc3_sample_dist_ax = plt.subplot(self.gs[1:2, 1:2])
-            self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2, 55, subplot_spec=self.gs[0:1, 1:2])
-            self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:1, 0:55]),
-                                        plt.subplot(self.sub_plot_gs[1:2, 0:29]),
-                                        plt.subplot(self.sub_plot_gs[1:2, 29:])]
-        elif self.distance_plotting_format == 'sample_type':
-            relative_width_large_map = 16/38
-            relative_width_sub_plot_gs = 1/2
-            gs_rows = 4
-            # 8 for each plot, 2 for gap in between with 3 gaps = 8*4 + 3*2 = 38
-            plot_width = 8
-            gap_width = 2
-            num_dist_plots = 4
-            gs_cols = (num_dist_plots*plot_width) + ((num_dist_plots-1)*gap_width)
-            self.gs = gridspec.GridSpec(gs_rows, gs_cols)
+        if dynamic_profile_colour:
+            self.prof_pal = self._get_prof_pal()
+            self.prof_color_dict = self._get_prof_color_dict()
+        else:
+            self.prof_color_dict = self._get_hardcoded_profile_colours()
 
-            # self.large_map_ax = plt.subplot(self.gs[:3, :int(relative_width_large_map*gs_cols)], projection=ccrs.PlateCarree(), zorder=1)
-            self.large_map_ax = plt.subplot(self.gs[:3, :int(relative_width_large_map*gs_cols)], projection=ccrs.PlateCarree(), zorder=1)
+        # seq abundances
+        self.seq_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.seqs.relative.txt')
+        self.seq_rel_df = self._make_seq_rel_df()
+        self.ordered_seq_names = self._get_ordered_seq_names()
+        self.seq_color_dict = self._set_seq_colour_dict()
 
-            self.pc1_pc2_sample_dist_ax = plt.subplot(self.gs[3:4, :plot_width])
-            self.pc1_pc3_sample_dist_ax = plt.subplot(self.gs[3:4, plot_width + gap_width:(plot_width * 2) + gap_width])
-            self.pc1_pc2_type_dist_ax = plt.subplot(self.gs[3:4, (plot_width * 2) + (gap_width * 2):(plot_width * 3) + (gap_width * 2)])
-            self.pc1_pc3_type_dist_ax = plt.subplot(self.gs[3:4, (plot_width * 3) + (gap_width * 3):])
-            self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(2, 55, subplot_spec=self.gs[0:3, int(gs_cols*relative_width_sub_plot_gs):gs_cols])
-            self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:1, 0:55]),
-                                        plt.subplot(self.sub_plot_gs[1:2, 0:29]),
-                                        plt.subplot(self.sub_plot_gs[1:2, 29:])]
-        elif self.distance_plotting_format == 'sample_type_by_site':
-            relative_width_large_map = 16 / 38
-            relative_width_sub_plot_gs = 1 / 2
-            gs_rows = 4
-            # 8 for each plot, 2 for gap in between with 3 gaps = 8*4 + 3*2 = 38
-            plot_width = 8
-            gap_width = 2
-            num_dist_plots = 4
-            gs_cols = (num_dist_plots * plot_width) + ((num_dist_plots - 1) * gap_width)
-            self.gs = gridspec.GridSpec(gs_rows, gs_cols)
+        # meta info
+        self.meta_path = os.path.join(self.input_base_dir, 'meta_info.xlsx')
+        self.meta_df = self._make_meta_df()
 
-            # self.large_map_ax = plt.subplot(self.gs[:3, :int(relative_width_large_map*gs_cols)], projection=ccrs.PlateCarree(), zorder=1)
-            self.large_map_ax = plt.subplot(self.gs[:3, :int(relative_width_large_map * gs_cols)],
-                                            projection=ccrs.PlateCarree(), zorder=1)
+        # Figure setup
+        self.fig = plt.figure(figsize=(8, 5))
 
-            self.pc1_pc2_sample_dist_ax = plt.subplot(self.gs[3:4, :plot_width])
-            self.pc1_pc3_sample_dist_ax = plt.subplot(self.gs[3:4, plot_width + gap_width:(plot_width * 2) + gap_width])
-            self.pc1_pc2_type_dist_ax = plt.subplot(
-                self.gs[3:4, (plot_width * 2) + (gap_width * 2):(plot_width * 3) + (gap_width * 2)])
-            self.pc1_pc3_type_dist_ax = plt.subplot(self.gs[3:4, (plot_width * 3) + (gap_width * 3):])
-            site_plot_width = 21
-            site_gap_width = 4
-            sub_plot_gs_width = ((2*site_plot_width) + site_gap_width)
-            self.sub_plot_gs = gridspec.GridSpecFromSubplotSpec(6, sub_plot_gs_width, subplot_spec=self.gs[0:3, int(
-                gs_cols * relative_width_sub_plot_gs):gs_cols])
-            self.sub_plot_seqs_axarr = [plt.subplot(self.sub_plot_gs[0:2, :site_plot_width]),
-                                        plt.subplot(self.sub_plot_gs[0:2, site_plot_width + site_gap_width:]),
-                                        plt.subplot(self.sub_plot_gs[2:4, :site_plot_width]),
-                                        plt.subplot(self.sub_plot_gs[2:4, site_plot_width + site_gap_width:]),
-                                        plt.subplot(self.sub_plot_gs[4:5, :]),
-                                        plt.subplot(self.sub_plot_gs[5:6, :]) ]
+        gs_rows = 5
+        gs_cols = 2
+        self.gs = gridspec.GridSpec(gs_rows, gs_cols)
 
-        # self.zoom_map_ax = plt.subplot(self.gs[:1, 1:2], projection=ccrs.PlateCarree(), zorder=1)
+        # sample_distances_ordinations and sample_profile_ordinations
+        # four columns for each of the ordinations and one column between each of the ordinations = 19 columns
+        # the column in between allows space for the component label.
+        self.sample_ordination_sub_gs = gridspec.GridSpecFromSubplotSpec(1, 19, subplot_spec=self.gs[:2, :])
+        self.pc1_pc2_sample_dist_ax = plt.subplot(self.sample_ordination_sub_gs[0, :4])
+        self.pc1_pc3_sample_dist_ax = plt.subplot(self.sample_ordination_sub_gs[0, 5:9])
+        self.pc1_pc2_profile_dist_ax = plt.subplot(self.sample_ordination_sub_gs[0, 10:14])
+        self.pc1_pc3_profile_dist_ax = plt.subplot(self.sample_ordination_sub_gs[0, 15:19])
 
+        # sequencing and profile info
+        self.sample_seq_info_sub_gs = gridspec.GridSpecFromSubplotSpec(5, 19, subplot_spec=self.gs[2:5, :])
+        self.sample_seq_info_axarr = [plt.subplot(self.sample_seq_info_sub_gs[:3, :4]),
+                                      plt.subplot(self.sample_seq_info_sub_gs[:3, 5:9]),
+                                      plt.subplot(self.sample_seq_info_sub_gs[:3, 10:14]),
+                                      plt.subplot(self.sample_seq_info_sub_gs[:3, 15:19])]
+        self.sample_seq_info_legend_axarr = [
+            plt.subplot(self.sample_seq_info_sub_gs[3:4, :9]),
+            plt.subplot(self.sample_seq_info_sub_gs[3:4, 10:19])]
+
+        # Info to plot
         self.sites = ['eilat', 'kaust', 'exposed', 'protected']
         self.sites_location_dict = {'eilat': (34.934402, 29.514673), 'kaust': (38.960234, 22.303411), 'exposed': (39.04470, 22.270300), 'protected':(39.051982,22.26900)}
-        self.site_color_dict = {'eilat':'white', 'kaust': 'white', 'exposed': 'white', 'protected':'black'}
-
+        self.site_color_dict = {'eilat':'black', 'kaust': 'white', 'exposed': 'white', 'protected':'white'}
 
         # self.sub_plot_profiles_axarr = [plt.subplot(self.sub_plot_gs[1:2, 0:1]), plt.subplot(self.sub_plot_gs[3:4, 0:1])]
         self.site_marker_dict = {'eilat': '+', 'kaust': '^', 'protected': 'o', 'exposed': 's' }
 
-    def _make_kallisto_df(self):
-        # with open(self.transcript_kallisto_matrix_path, 'r') as f:
-        #     data = [line.rstrip().lstrip() for line in f]
-        df = pd.read_csv(self.transcript_kallisto_matrix_path, sep='\t')
-        df = df.astype('float')
-        df['var'] = df.std(axis=1)
-
-        from scipy import stats
-        df_z = pd.DataFrame(stats.zscore(df, axis=1), columns=df.columns.values.tolist(), index=df.index.values.tolist())
-        # for i in range(36):
-        #     ax = plt.subplot(6,6,i+1)
-        #     ax.hist(df_z.iloc[i,:], bins=10)
-        # we are now interested in the genes that have the highest cumulative zscore where the absolute value of the
-        # score is taken (i.e. so that negative z-socres are also important).
-        # df_z['cumulative_z'] = df_z.apply(self._calculate_cumulative_zscores, axis=1)
-        df_z['cumulative_z'] = df_z.abs().sum(axis=1)
-        ax = plt.subplot(111)
-        ax.hist(df_z['cumulative_z'], bins=100)
-        df_z.sort_values('cumulative_z', axis=0, ascending=False, inplace=True)
-        # get the top 100 DEG
-
-        df_deg_100 = df_z.iloc[:100, :-2]
-        df_deg_100.to_csv(os.path.join(self.transcript_output_path, 'spis_deg_100.csv'))
-        apples = 'asdf'
-
-    def _calculate_cumulative_zscores(self, row):
-        tot = 0
-        for val in row.values.tolist():
-            tot += abs(val)
-        return tot
-
-    def _get_prof_pal(self):
-        return ['#%02x%02x%02x' % rgb_tup for rgb_tup in
-                         self.create_colour_list(mix_col=(255, 255, 255), sq_dist_cutoff=1000, num_cols=50,
-                                                 time_out_iterations=10000)]
-
-    def _get_prof_color_dict(self):
-        temp_col_dict = {}
-        for i, prof_name in enumerate(self.ordered_prof_names):
-            temp_col_dict[prof_name] = self.prof_pal[i]
-        return temp_col_dict
-
-    def _get_ordered_prof_names(self):
-        return self.prof_rel_df.sum().sort_values(ascending=False).index.values.tolist()
-
-    def _get_seq_color_dict(self):
-        temp_col_dict = {}
-        for i, seq in enumerate(self.ordered_seq_names):
-            temp_col_dict[seq] = self.seq_pal[i]
-        return temp_col_dict
-
-    def _get_ordered_seq_names(self):
-        return self.seq_rel_df.sum().sort_values(ascending=False).index.values.tolist()
-
-    def _make_prof_rel_df(self):
-        with open(self.profile_abund_relative_path, 'r') as f:
-            prof_data = [out_line.split('\t') for out_line in [line.rstrip() for line in f]]
-
-        df = pd.DataFrame(prof_data)
-        self.profile_uid_to_profile_name_dict = {uid:name for uid, name in zip(df.iloc[0,2:].values.tolist(), df.iloc[6, 2:].values.tolist())}
-        self.profile_name_to_profile_uid_dict = {name:uid for uid, name in self.profile_uid_to_profile_name_dict.items()}
-        df.drop(index=list(range(6)), inplace=True)
-        df.drop(columns=1, inplace=True)
-        df.columns = df.iloc[0]
-        df = df.iloc[1:-6,:]
-        df.set_index('ITS2 type profile', drop=True, inplace=True)
-        df.index = df.index.astype('int')
-        return df.astype('float')
-
-    def _make_seq_rel_df(self):
-        with open(self.seq_abund_relative_path, 'r') as f:
-            seq_data = [out_line.split('\t') for out_line in [line.rstrip() for line in f]]
-
-        df = pd.DataFrame(seq_data)
-        df.iat[0,0] = 'sample_uid'
-        df.columns = df.iloc[0]
-        df.drop(index=0, inplace=True)
-        df.drop(columns='sample_name', inplace=True)
-        df.set_index('sample_uid', drop=True, inplace=True)
-        df = df[:-3]
-        df.index = df.index.astype('int')
-        # Get rid of all of the superflous columns only leaving the seq rel counts
-        df = df.iloc[:,20:]
-
-        return df.astype('float')
-
-    def _make_sample_dist_df(self):
-        with open(self.dist_path_samples, 'r') as f:
-            dist_data = [out_line.split('\t') for out_line in [line.rstrip() for line in f][1:]]
-
-        df = pd.DataFrame(dist_data)
-        self.sample_uid_to_sample_name_dict = {int(uid):name for name, uid in zip(df[0].values.tolist(), df[1].values.tolist())}
-        self.sample_name_to_sample_uid_dict = {name:uid for uid, name in self.sample_uid_to_sample_name_dict.items()}
-        df.drop(columns=0, inplace=True)
-        df.set_index(keys=1, drop=True, inplace=True)
-        df.index = df.index.astype('int')
-        df.columns = df.index.values.tolist()
-
-        return df.astype(dtype='float')
-
-    def _make_sample_pcoa_df(self):
-        df = pd.read_csv(filepath_or_buffer=self.pcoa_samples_path, sep=',', header=0, index_col=0, skipfooter=1)
-        df.index = df.index.astype('int')
-        return df
-
-    def _make_type_dist_df(self):
-        with open(self.dist_path_types, 'r') as f:
-            dist_data = [out_line.split('\t') for out_line in [line.rstrip() for line in f][1:]]
-
-        df = pd.DataFrame(dist_data)
-        self.type_uid_to_type_name_dict = {int(uid): name for name, uid in
-                                               zip(df[0].values.tolist(), df[1].values.tolist())}
-        self.type_name_to_type_uid_dict = {name: uid for uid, name in self.type_uid_to_type_name_dict.items()}
-        df.drop(columns=0, inplace=True)
-        df.set_index(keys=1, drop=True, inplace=True)
-        df.index = df.index.astype('int')
-        df.columns = df.index.values.tolist()
-
-        return df.astype(dtype='float')
-
-    def _make_type_pcoa_df(self):
-        df = pd.read_csv(filepath_or_buffer=self.pcoa_types_path, sep=',', header=0, index_col=1, skipfooter=1)
-        df.drop(columns='sample', inplace=True)
-        df.index = df.index.astype('int')
-        return df
-
-    def _make_meta_df(self):
-        df = pd.read_excel(self.meta_path, sheet_name=0, header=1, index_col=False, drop_row=0 )
-        df.set_index('sample_name', drop=True, inplace=True)
-        # make sure that each of the sample names in the distance file are found in the meta file
-        sample_names_in_meta = df.index.values.tolist()
-        ordered_sample_tups_list = []
-        for sample_name, sample_uid in self.sample_name_to_sample_uid_dict.items():
-            if sample_name not in sample_names_in_meta:
-                print(f'Sample name: {sample_name} not found')
-            else:
-                ordered_sample_tups_list.append((sample_name, sample_uid))
-        wanted_sample_names = [tup[0] for tup in ordered_sample_tups_list]
-        # fix the bad coordinate system and then convert the coordinate to float for theses columns
-        for i, sample_name in enumerate(df.index.values.tolist()): # for each row
-            current_val_lat = df['collection_latitude'][sample_name]
-            if not isinstance(current_val_lat, float):
-                if 'N' in current_val_lat:
-                    df.iat[i, 9] = float(current_val_lat[2:-1])
-                    current_val_lon = df['collection_longitude'][sample_name]
-                    df.iat[i, 10] = float(current_val_lon[2:-1])
-        df = df.loc[wanted_sample_names,:]
-        # make a new columns that is site name
-        site_name = []
-        for i, sample_name in enumerate(df.index.values.tolist()):
-            if df['collection_latitude'][sample_name] == 29.514673:
-                site_name.append('eilat')
-            elif df['collection_latitude'][sample_name] == 22.26302:
-                site_name.append('protected')
-            elif df['collection_latitude'][sample_name] == 22.26189:
-                site_name.append('exposed')
-            elif df['collection_latitude'][sample_name] == 22.303411:
-                site_name.append('kaust')
-            else:
-                sys.exit('Mismatch in latitude')
-        df['site'] = site_name
-
-        return df
-
-    def print_out_sample_id_list(self):
-        with open(os.path.join(self.input_base_dir, 'sample_id_list_84'), 'w') as f:
-            f.write(','.join([str(_) for _ in self.seq_rel_df.index.values.tolist()]))
-        apples = 'asdf'
-
-
     def plot_ordination_figure(self):
-
-        self.large_map_ax.set_extent(extents=(33.0, 41.0, 22.0, 30.0))
-        land_110m, ocean_110m, boundary_110m = self._get_naural_earth_features_big_map()
-        print('drawing annotations on big map')
-        self._draw_natural_earth_features_big_map(land_110m, ocean_110m,boundary_110m)
-        print('big map annotations complete')
-        self._put_gridlines_on_large_map_ax()
-        self._annotate_map_with_sites()
-
-        # self.zoom_map_ax.set_extent(extents=(38.75, 39.25, 22, 22.5))
-        # land_10m, ocean_10m = self._get_naural_earth_features_zoom_map()
-        # self._draw_natural_earth_features_zoom_map(land_10m, ocean_10m)
-        # self._put_gridlines_on_zoom_map_ax()
-        # self._annotate_zoom_map()
-
-        self._plot_type_dists(ax=self.pc1_pc2_type_dist_ax, second_pc_label='PC2', second_pc_var_explained='20.6')
-        self._plot_type_dists(ax=self.pc1_pc3_type_dist_ax, second_pc_label='PC3', second_pc_var_explained='11.9')
 
         color_list, marker_list, x_list = self._plot_pc1_pc2_sample_dists()
 
         self._plot_pc1_pc3_sample_dists(color_list, marker_list, x_list)
 
-        if self.distance_plotting_format == 'sample_type_by_site':
-            self._seq_and_type_plotting_site_ordered()
-        else:
-            self._seq_and_type_plotting_type_ordered()
+        self._plot_type_dists(ax=self.pc1_pc2_profile_dist_ax, second_pc_label='PC2', second_pc_var_explained='20.6')
+        self._plot_type_dists(ax=self.pc1_pc3_profile_dist_ax, second_pc_label='PC3', second_pc_var_explained='11.9')
 
-        small_map_ax, small_x0, small_x1, small_y0, small_y1 = self._position_and_draw_inset_axis()
+        self._seq_and_type_plotting_site_ordered()
 
-        self._add_land_and_sea_to_inset(small_map_ax, small_x0, small_x1, small_y0, small_y1)
-
-        self._draw_reefs_on_inset(small_map_ax)
-
-        self._draw_inset_location(small_x0, small_x1, small_y0, small_y1)
-
-        self._draw_zoom_shade(small_x0, small_x1, small_y1)
-
-        # self.large_map_ax.plot([small_x0, 37], [small_y1, 26], '-', linewidth=0.8, color='black', zorder=4)
-        # self.large_map_ax.plot([small_x1, 41], [small_y1, 26], '-', linewidth=0.8, color='black', zorder=4)
-        self._reposition_inset(small_map_ax)
-
-        # for site in ['kaust', 'protected', 'exposed']:
-        #     if site != 'protected':
-        #         small_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1], self.site_marker_dict[site], markerfacecolor='white', markeredgecolor='black', markersize=8)
-        #     else:
-        #         small_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
-        #                                self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
-        #                                markersize=8)
-
-        # points for the site markers on inset
-        annotation_xs, annotation_y = self._draw_site_markers_on_inset(small_map_ax, small_x0, small_x1)
-        self._draw_arrows_on_inset(annotation_xs, annotation_y, small_map_ax)
-
-        self._draw_gridlines_on_inset(small_map_ax)
-
-        poly_xs = self._add_legend_bbox()
-
-        self._populate_map_legend()
-
-        apples = 'asdf'
+        plt.tight_layout()
         print('saving .png')
-        plt.savefig(os.path.join(self.fig_out_path, 'map_pcoa_sample_type_site.png'), dpi=1200)
+        plt.savefig(os.path.join(self.fig_out_path, 'eighty_four_sample_profile_dists_and_seq_info.png'), dpi=1200)
         print('saving .svg')
-        plt.savefig(os.path.join(self.fig_out_path, 'map_pcoa_sample_type_site.svg'), dpi=1200)
-
-    def _populate_map_legend(self):
-        leg_xs = [33.6]
-        leg_ys = [22 + 8 / 5, 22 + 6 / 5, 22 + 4 / 5, 22 + 2 / 5]
-        for i, site in enumerate(['eilat', 'kaust', 'exposed', 'protected']):
-            if site != 'protected':
-                self.large_map_ax.plot(leg_xs[0], leg_ys[i], self.site_marker_dict[site], markerfacecolor='white',
-                                       markeredgecolor='black', markersize=6, zorder=4)
-            else:
-                self.large_map_ax.plot(leg_xs[0], leg_ys[i],
-                                       self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
-                                       markersize=6, zorder=4)
-            self.large_map_ax.text(leg_xs[0] + 0.75, leg_ys[i], s=site, verticalalignment='center',
-                                   horizontalalignment='left', fontsize='x-small')
-
-    def _add_legend_bbox(self):
-        poly_xs = [33, 36, 36, 33]
-        poly_ys = [22, 22, 24, 24]
-        leg_poly = Polygon(
-            xy=[[x, y] for x, y in zip(poly_xs, poly_ys)],
-            closed=True, edgecolor='black', fill=True,
-            facecolor='white', alpha=0.8, zorder=3)
-        self.large_map_ax.add_patch(leg_poly)
-        return poly_xs
-
-    def _draw_arrows_on_inset(self, annotation_xs, annotation_y, small_map_ax):
-        self._annotate_site_arrow_small_map(
-            small_map_ax, tail_x=annotation_xs[0], tail_y=annotation_y - 0.01,
-            head_x=self.sites_location_dict['kaust'][0], head_y=self.sites_location_dict['kaust'][1],
-            zorder=5, linewidth=0.2)
-        self._annotate_site_arrow_small_map(
-            small_map_ax, tail_x=annotation_xs[1], tail_y=annotation_y - 0.01,
-            head_x=self.sites_location_dict['exposed'][0], head_y=self.sites_location_dict['exposed'][1],
-            zorder=5, linewidth=0.2)
-        self._annotate_site_arrow_small_map(
-            small_map_ax, tail_x=annotation_xs[2], tail_y=annotation_y - 0.01,
-            head_x=self.sites_location_dict['protected'][0], head_y=self.sites_location_dict['protected'][1],
-            zorder=5, linewidth=0.2)
-
-    def _draw_gridlines_on_inset(self, small_map_ax):
-        xlocs = [38.90, 38.95, 39.0, 39.10, 39.15]
-        ylocs = [22.15, 22.20, 22.30, 22.35]
-        if xlocs is not None and not isinstance(xlocs, mticker.Locator):
-            xlocs = mticker.FixedLocator(xlocs)
-        if ylocs is not None and not isinstance(ylocs, mticker.Locator):
-            ylocs = mticker.FixedLocator(ylocs)
-        g1 = Gridliner(
-            axes=small_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
-            xlocator=xlocs, ylocator=ylocs)
-        g1.xlabels_top = False
-        g1.ylabels_right = False
-        small_map_ax._gridliners.append(g1)
-
-    def _draw_site_markers_on_inset(self, small_map_ax, small_x0, small_x1):
-        annotation_y = 22.33
-        annotation_xs = [small_x0 + 1 / 6 * (small_x1 - small_x0), small_x0 + 2 / 6 * (small_x1 - small_x0),
-                         small_x0 + 3 / 6 * (small_x1 - small_x0)]
-        # plot the 'kaust point'
-        small_map_ax.plot(
-            annotation_xs[0], annotation_y, self.site_marker_dict['kaust'],
-            markerfacecolor='white', markeredgecolor='black', markersize=8)
-        # plot exposed
-        small_map_ax.plot(
-            annotation_xs[1], annotation_y, self.site_marker_dict['exposed'],
-            markerfacecolor='white', markeredgecolor='black', markersize=8)
-        small_map_ax.plot(
-            annotation_xs[2], annotation_y, self.site_marker_dict['protected'],
-            markerfacecolor='black', markeredgecolor='black', markersize=8)
-        return annotation_xs, annotation_y
-
-    def _reposition_inset(self, small_map_ax):
-        plt.draw()
-        large_map_bbox = self.large_map_ax.get_position()
-        small_map_bbox = small_map_ax.get_position()
-        small_map_ax.set_position([
-            large_map_bbox.x1 - small_map_bbox.width,
-            large_map_bbox.y1 - small_map_bbox.height,
-            small_map_bbox.width,
-            small_map_bbox.height])
-
-    def _draw_zoom_shade(self, small_x0, small_x1, small_y1):
-        # draw the lines that connect the inset to the bouding box
-        poly_x = [small_x0, small_x1, 41, 37]
-        poly_y = [small_y1, small_y1, 26, 26]
-        poly_xy = [[x, y] for x, y in zip(poly_x, poly_y)]
-        zoom_poly = Polygon(poly_xy, closed=True, fill=True, color='black', alpha=0.1, linewidth=1, zorder=4)
-        self.large_map_ax.add_patch(zoom_poly)
-
-    def _draw_inset_location(self, small_x0, small_x1, small_y0, small_y1):
-        # draw the bounding box of the small map onto the big map
-        bbox_xs = [small_x0, small_x1, small_x1, small_x0]
-        bbox_ys = [small_y0, small_y0, small_y1, small_y1]
-        # bbox_xs = [36, 38, 38, 36]
-        # bbox_ys = [23, 23, 25, 25]
-        poly_xy = [[x, y] for x, y in zip(bbox_xs, bbox_ys)]
-        bbox_poly = Polygon(poly_xy, closed=True, fill=False, color='black', linewidth=1, zorder=4)
-        self.large_map_ax.add_patch(bbox_poly)
-
-    def _draw_reefs_on_inset(self, small_map_ax):
-        for i in range(1, 33, 1):
-            kml_path = os.path.join(self.gis_input_base_path, f'reef_{i}.kml')
-            with open(kml_path, 'r') as f:
-                file = [line.rstrip().lstrip() for line in f]
-            for i, line in enumerate(file):
-                if '<coordinates>' in line:
-                    coords = file[i + 1]
-                    break
-            coords_tup_list_str = coords.split(' ')
-            x_y_tups_of_feature = []
-            for tup in coords_tup_list_str:
-                x_y_tups_of_feature.append([float(_) for _ in tup.split(',')[:-1]])
-            x_s = [_[0] for _ in x_y_tups_of_feature]
-            y_s = [_[1] for _ in x_y_tups_of_feature]
-            poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
-            reef_poly = Polygon(poly_xy, closed=True, fill=True, edgecolor='None', color='red', alpha=0.2)
-            small_map_ax.add_patch(reef_poly)
-
-    def _add_land_and_sea_to_inset(self, small_map_ax, small_x0, small_x1, small_y0, small_y1):
-        x_s, y_s = self._add_kml_file_to_ax(ax=small_map_ax,
-                                            kml_path=os.path.join(self.gis_input_base_path, 'kaust_coast.kml'))
-        poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
-        # add top right and bottom right
-        poly_xy.extend([[small_x1, small_y0], [small_x1, small_y1]])
-        land_poly = Polygon(poly_xy, closed=True, fill=True, color=(238 / 255, 239 / 255, 219 / 255))
-        small_map_ax.add_patch(land_poly)
-        # now do the seq poly
-        poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
-        # add top left and bottom left
-        poly_xy.extend([[small_x0, small_y0], [small_x0, small_y1]])
-        sea_poly = Polygon(poly_xy, closed=True, fill=True, color=(136 / 255, 182 / 255, 224 / 255))
-        small_map_ax.add_patch(sea_poly)
-
-    def _position_and_draw_inset_axis(self):
-        # making a smal axis
-        dis_data = self.large_map_ax.transData.transform([(37.0, 26.0), (41.0, 30.0)])
-        inv = self.fig.transFigure.inverted()
-        fig_data = inv.transform(dis_data)
-        width = fig_data[1][0] - fig_data[0][0]
-        height = fig_data[1][1] - fig_data[0][1]
-        small_map_ax = self.fig.add_axes([fig_data[0][0], fig_data[0][1], width, height], zorder=2,
-                                         projection=ccrs.PlateCarree())
-        small_x0 = 38.95
-        small_x1 = 39.12
-        small_y0 = 22.178
-        small_y1 = 22.347
-        small_map_ax.set_extent(extents=(small_x0, small_x1, small_y0, small_y1))
-        return small_map_ax, small_x0, small_x1, small_y0, small_y1
-
-    def _seq_and_type_plotting_type_ordered(self):
-        sample_order = self._get_sample_order()
-        self._plot_seq_and_type_ax_type_ordered(sample_order)
-        self._plot_seq_and_type_legend(ax = self.sub_plot_seqs_axarr[2])
+        plt.savefig(os.path.join(self.fig_out_path, 'eighty_four_map_pcoa_sample_type_site.svg'), dpi=1200)
 
     def _seq_and_type_plotting_site_ordered(self):
         sample_order = self._get_sample_order()
         self._plot_seq_and_type_ax_site_ordered(sample_order)
-        self._plot_seq_and_type_legend(ax=self.sub_plot_seqs_axarr[4])
-        self._plot_seq_and_type_legend(ax=self.sub_plot_seqs_axarr[5], type_plotting=True)
+        self._plot_seq_and_type_legend(ax=self.sample_seq_info_legend_axarr[0])
+        self._plot_seq_and_type_legend(ax=self.sample_seq_info_legend_axarr[1], type_plotting=True)
 
     def _plot_seq_and_type_ax_site_ordered(self, sample_order):
         # We plot the first 55 because this is clean break in the ITS2 type profiles
@@ -555,7 +152,7 @@ class SampleOrdinationFigure:
                 num_samples_in_first_plot=num_sampls_first_plot, y_lab=y_lab, site=site)
 
     def _plot_seq_and_type_legend(self, ax, type_plotting=False):
-        leg_plotter = LegendPlotter(parent_plotter=self, ax=ax, type_plotting=type_plotting)
+        leg_plotter = self.LegendPlotter(parent_plotter=self, ax=ax, type_plotting=type_plotting)
         leg_plotter.plot_legend_seqs()
 
 
@@ -648,27 +245,7 @@ class SampleOrdinationFigure:
         ax.set_ylabel(f'{second_pc_label} - {second_pc_var_explained}%')
         return
 
-    def _annotate_site_arrow_small_map(self, small_map_ax, head_x, head_y, tail_x, tail_y, zorder, linewidth=1):
-        # draw arrows on plot
-        dx=head_x-tail_x
-        dy=head_y-tail_y
-        small_map_ax.arrow(x=tail_x, y=tail_y, dx=dx, dy=dy, zorder=zorder, linewidth=linewidth)
 
-    def _add_kml_file_to_ax(self, ax, kml_path, linewidth=0.8, linestyle='-', color='black', ):
-        with open(kml_path, 'r') as f:
-            file = [line.rstrip().lstrip() for line in f]
-        for i, line in enumerate(file):
-            if '<coordinates>' in line:
-                coords = file[i + 1]
-                break
-        coords_tup_list_str = coords.split(' ')
-        x_y_tups_of_feature = []
-        for tup in coords_tup_list_str:
-            x_y_tups_of_feature.append([float(_) for _ in tup.split(',')[:-1]])
-        x_s = [_[0] for _ in x_y_tups_of_feature]
-        y_s = [_[1] for _ in x_y_tups_of_feature]
-        ax.plot(x_s, y_s, linewidth=linewidth, linestyle=linestyle, color=color)
-        return x_s, y_s
 
     def _plot_profs_on_ax(self, ordered_sample_list, ax, width, x_ind_list):
         ax.set_xlim(0, 1)
@@ -846,101 +423,190 @@ class SampleOrdinationFigure:
                        marker=self.site_marker_dict[current_site], edgecolor='black',
                        facecolor='white')
 
-    def _get_naural_earth_features_big_map(self):
-        land_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='land',
-                                                       scale='50m')
-        ocean_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='ocean',
-                                                        scale='50m')
-        boundary_110m = cartopy.feature.NaturalEarthFeature(category='cultural',
-                                                            name='admin_0_boundary_lines_land', scale='110m')
-        return land_110m, ocean_110m, boundary_110m
+    def print_out_sample_id_list(self):
+        with open(os.path.join(self.input_base_dir, 'sample_id_list_84'), 'w') as f:
+            f.write(','.join([str(_) for _ in self.seq_rel_df.index.values.tolist()]))
 
-    def _get_naural_earth_features_zoom_map(self):
-        land_10m = cartopy.feature.NaturalEarthFeature(category='physical', name='land',
-                                                       scale='50m')
-        ocean_10m = cartopy.feature.NaturalEarthFeature(category='physical', name='ocean',
-                                                        scale='50m')
+    # Info object creation methods
+    def _get_ordered_seq_names(self):
+        return self.seq_rel_df.sum().sort_values(ascending=False).index.values.tolist()
 
-        return land_10m, ocean_10m
+    def _make_prof_rel_df(self):
+        with open(self.profile_abund_relative_path, 'r') as f:
+            prof_data = [out_line.split('\t') for out_line in [line.rstrip() for line in f]]
 
-    def _draw_natural_earth_features_big_map(self, land_110m, ocean_110m, boundary_110m):
-        """NB the RGB must be a tuple in a list and the R, G, B must be given as a value between 0 and 1"""
-        self.large_map_ax.add_feature(land_110m, facecolor=[(238 / 255, 239 / 255, 219 / 255)],
-                                      edgecolor='black', linewidth=0.2)
-        self.large_map_ax.add_feature(ocean_110m, facecolor=[(136 / 255, 182 / 255, 224 / 255)],
-                                      edgecolor='black', linewidth=0.2)
-        self.large_map_ax.add_feature(boundary_110m, edgecolor='gray', linewidth=0.2, facecolor='None')
+        df = pd.DataFrame(prof_data)
+        self.profile_uid_to_profile_name_dict = {uid:name for uid, name in zip(df.iloc[0,2:].values.tolist(), df.iloc[6, 2:].values.tolist())}
+        self.profile_name_to_profile_uid_dict = {name:uid for uid, name in self.profile_uid_to_profile_name_dict.items()}
+        df.drop(index=list(range(6)), inplace=True)
+        df.drop(columns=1, inplace=True)
+        df.columns = df.iloc[0]
+        df = df.iloc[1:-6,:]
+        df.set_index('ITS2 type profile', drop=True, inplace=True)
+        df.index = df.index.astype('int')
+        return df.astype('float')
 
-    def _draw_natural_earth_features_zoom_map(self, land_10m, ocean_10m):
-        """NB the RGB must be a tuple in a list and the R, G, B must be given as a value between 0 and 1"""
-        self.zoom_map_ax.add_feature(land_10m, facecolor=[(238 / 255, 239 / 255, 219 / 255)],
-                                      edgecolor='black')
-        self.zoom_map_ax.add_feature(ocean_10m, facecolor=[(136 / 255, 182 / 255, 224 / 255)],
-                                      edgecolor='black')
+    def _make_seq_rel_df(self):
+        with open(self.seq_abund_relative_path, 'r') as f:
+            seq_data = [out_line.split('\t') for out_line in [line.rstrip() for line in f]]
 
+        df = pd.DataFrame(seq_data)
+        df.iat[0,0] = 'sample_uid'
+        df.columns = df.iloc[0]
+        df.drop(index=0, inplace=True)
+        df.drop(columns='sample_name', inplace=True)
+        df.set_index('sample_uid', drop=True, inplace=True)
+        df = df[:-3]
+        df.index = df.index.astype('int')
+        # Get rid of all of the superflous columns only leaving the seq rel counts
+        df = df.iloc[:,20:]
 
-    def _put_gridlines_on_large_map_ax(self):
-        """ Although there is a GeoAxis.gridlines() method, this method does not yet allow a lot of
-        bespoke options. If we want to only put the labels on the top and left then we have to
-        generate a Gridliner object (normally returned by GeoAxis.gridlines() ourselves. We then need
-        to manually change the xlabels_bottom and ylabels_right attributes of this Gridliner object.
-        We then draw it by adding it to the GeoAxis._gridliners list."""
+        return df.astype('float')
 
-        xlocs = [32.0, 34.0, 36.0, 38.0, 40.0, 42.0]
-        ylocs = [21.0, 23.0, 25.0, 27.0, 29.0, 31.0]
+    def _make_sample_dist_df(self):
+        with open(self.dist_path_samples, 'r') as f:
+            dist_data = [out_line.split('\t') for out_line in [line.rstrip() for line in f][1:]]
 
-        if xlocs is not None and not isinstance(xlocs, mticker.Locator):
-            xlocs = mticker.FixedLocator(xlocs)
-        if ylocs is not None and not isinstance(ylocs, mticker.Locator):
-            ylocs = mticker.FixedLocator(ylocs)
-        g1 = Gridliner(
-            axes=self.large_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
-            xlocator=xlocs, ylocator=ylocs)
-        g1.xlabels_bottom = False
-        g1.ylabels_right = False
-        self.large_map_ax._gridliners.append(g1)
-        # self.large_map_ax.gridlines(draw_labels=True)
+        df = pd.DataFrame(dist_data)
+        self.sample_uid_to_sample_name_dict = {int(uid):name for name, uid in zip(df[0].values.tolist(), df[1].values.tolist())}
+        self.sample_name_to_sample_uid_dict = {name:uid for uid, name in self.sample_uid_to_sample_name_dict.items()}
+        df.drop(columns=0, inplace=True)
+        df.set_index(keys=1, drop=True, inplace=True)
+        df.index = df.index.astype('int')
+        df.columns = df.index.values.tolist()
 
-    def _put_gridlines_on_zoom_map_ax(self):
-        """ Although there is a GeoAxis.gridlines() method, this method does not yet allow a lot of
-        bespoke options. If we want to only put the labels on the top and left then we have to
-        generate a Gridliner object (normally returned by GeoAxis.gridlines() ourselves. We then need
-        to manually change the xlabels_bottom and ylabels_right attributes of this Gridliner object.
-        We then draw it by adding it to the GeoAxis._gridliners list."""
+        return df.astype(dtype='float')
 
-        xlocs = [38.75, 39.0, 39.25, 39.5]
-        ylocs = [22.0, 22.25, 22.5, 22.75]
+    def _make_sample_pcoa_df(self):
+        df = pd.read_csv(filepath_or_buffer=self.pcoa_samples_path, sep=',', header=0, index_col=0, skipfooter=1)
+        df.index = df.index.astype('int')
+        return df
 
-        if xlocs is not None and not isinstance(xlocs, mticker.Locator):
-            xlocs = mticker.FixedLocator(xlocs)
-        if ylocs is not None and not isinstance(ylocs, mticker.Locator):
-            ylocs = mticker.FixedLocator(ylocs)
-        g1 = Gridliner(
-            axes=self.zoom_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
-            xlocator=xlocs, ylocator=ylocs)
-        g1.xlabels_bottom = False
-        g1.ylabels_right = False
-        self.zoom_map_ax._gridliners.append(g1)
-        # self.zoom_map_ax.gridlines(draw_labels=True)
+    def _make_type_dist_df(self):
+        with open(self.dist_path_types, 'r') as f:
+            dist_data = [out_line.split('\t') for out_line in [line.rstrip() for line in f][1:]]
 
-    def _annotate_map_with_sites(self):
-        for site in ['eilat']:
-            if site != 'protected':
-                self.large_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1], self.site_marker_dict[site], markerfacecolor='white', markeredgecolor='black', markersize=8)
+        df = pd.DataFrame(dist_data)
+        self.type_uid_to_type_name_dict = {int(uid): name for name, uid in
+                                               zip(df[0].values.tolist(), df[1].values.tolist())}
+        self.type_name_to_type_uid_dict = {name: uid for uid, name in self.type_uid_to_type_name_dict.items()}
+        df.drop(columns=0, inplace=True)
+        df.set_index(keys=1, drop=True, inplace=True)
+        df.index = df.index.astype('int')
+        df.columns = df.index.values.tolist()
+
+        return df.astype(dtype='float')
+
+    def _make_type_pcoa_df(self):
+        df = pd.read_csv(filepath_or_buffer=self.pcoa_types_path, sep=',', header=0, index_col=1, skipfooter=1)
+        df.drop(columns='sample', inplace=True)
+        df.index = df.index.astype('int')
+        return df
+
+    def _make_meta_df(self):
+        df = pd.read_excel(self.meta_path, sheet_name=0, header=1, index_col=False, drop_row=0 )
+        df.set_index('sample_name', drop=True, inplace=True)
+        # make sure that each of the sample names in the distance file are found in the meta file
+        sample_names_in_meta = df.index.values.tolist()
+        ordered_sample_tups_list = []
+        for sample_name, sample_uid in self.sample_name_to_sample_uid_dict.items():
+            if sample_name not in sample_names_in_meta:
+                print(f'Sample name: {sample_name} not found')
             else:
-                self.large_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
-                                       self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
-                                       markersize=8)
+                ordered_sample_tups_list.append((sample_name, sample_uid))
+        wanted_sample_names = [tup[0] for tup in ordered_sample_tups_list]
+        # fix the bad coordinate system and then convert the coordinate to float for theses columns
+        for i, sample_name in enumerate(df.index.values.tolist()): # for each row
+            current_val_lat = df['collection_latitude'][sample_name]
+            if not isinstance(current_val_lat, float):
+                if 'N' in current_val_lat:
+                    df.iat[i, 9] = float(current_val_lat[2:-1])
+                    current_val_lon = df['collection_longitude'][sample_name]
+                    df.iat[i, 10] = float(current_val_lon[2:-1])
+        df = df.loc[wanted_sample_names,:]
+        # make a new columns that is site name
+        site_name = []
+        for i, sample_name in enumerate(df.index.values.tolist()):
+            if df['collection_latitude'][sample_name] == 29.514673:
+                site_name.append('eilat')
+            elif df['collection_latitude'][sample_name] == 22.26302:
+                site_name.append('protected')
+            elif df['collection_latitude'][sample_name] == 22.26189:
+                site_name.append('exposed')
+            elif df['collection_latitude'][sample_name] == 22.303411:
+                site_name.append('kaust')
+            else:
+                sys.exit('Mismatch in latitude')
+        df['site'] = site_name
 
+        return df
 
-    def _annotate_zoom_map(self):
-        # collect unique tuples of locations
-        x_site_coords = [ 39.05165, 39.04878, 38.960234]
-        y_site_coords = [ 22.26302, 22.26189, 22.303411]
+    # Colour methods
+    def _get_hardcoded_profile_colours(self):
+        return {'A1g/A1-A1l-A1cr-A1o-A1dp-A1p-A1dq-A1dn': '#ed8ed8', 'A1-A1ds-A1z-A1dr-A1bh': '#8ba4d1', 'A1-A1dm': '#aef686', 'A1-A1z-A1do': '#badffb', 'A1-A1du-A1z-A1ds-A1dr': '#fcad97', 'A1-A1z': '#8cfdc4'}
 
-        self.zoom_map_ax.plot(x_site_coords[0], y_site_coords[0], 'bo')
-        self.zoom_map_ax.plot(x_site_coords[1], y_site_coords[1], 'go')
-        self.zoom_map_ax.plot(x_site_coords[2], y_site_coords[2], 'ko')
+    def _set_seq_colour_dict(self):
+        """Create the colour dictionary that will be used for plotting by assigning a colour from the colour_palette
+        to the most abundant seqs first and after that cycle through the grey_pallette assigning colours
+        If we are only going to have a legend that is cols x rows as shown below, then we should only use
+        that many colours in the plotting."""
+        temp_colour_dict = {}
+        predefined_colour_dict = self._get_pre_def_colour_dict()
+
+        for seq_name, color_hash in predefined_colour_dict.items():
+            if seq_name in self.ordered_seq_names:
+                temp_colour_dict[seq_name] = color_hash
+
+        colour_palette, grey_palette = self._get_colour_lists()
+
+        remaining_seqs = [seq for seq in self.ordered_seq_names if seq not in predefined_colour_dict.keys()]
+
+        for i, seq_name in enumerate(remaining_seqs):
+            if i < len(colour_palette):
+                temp_colour_dict[seq_name] = colour_palette[i]
+            else:
+                grey_index = i % len(grey_palette)
+                temp_colour_dict[seq_name] = grey_palette[grey_index]
+
+        return temp_colour_dict
+
+    def _get_colour_lists(self):
+        colour_palette = self._get_colour_list()
+        grey_palette = ['#D0CFD4', '#89888D', '#4A4A4C', '#8A8C82', '#D4D5D0', '#53544F']
+        return colour_palette, grey_palette
+
+    @staticmethod
+    def _get_pre_def_colour_dict():
+        """These are the top 40 most abundnant named sequences. I have hardcoded their color."""
+        return {
+            'A1': "#FFFF00", 'C3': "#1CE6FF", 'C15': "#FF34FF", 'A1bo': "#FF4A46", 'D1': "#008941",
+            'C1': "#006FA6", 'C27': "#A30059", 'D4': "#FFDBE5", 'C3u': "#7A4900", 'C42.2': "#0000A6",
+            'A1bp': "#63FFAC", 'C115': "#B79762", 'C1b': "#004D43", 'C1d': "#8FB0FF", 'A1c': "#997D87",
+            'C66': "#5A0007", 'A1j': "#809693", 'B1': "#FEFFE6", 'A1k': "#1B4400", 'A4': "#4FC601",
+            'A1h': "#3B5DFF", 'C50a': "#4A3B53", 'C39': "#FF2F80", 'C3dc': "#61615A", 'D4c': "#BA0900",
+            'C3z': "#6B7900", 'C21': "#00C2A0", 'C116': "#FFAA92", 'A1cc': "#FF90C9", 'C72': "#B903AA",
+            'C15cl': "#D16100", 'C31': "#DDEFFF", 'C15cw': "#000035", 'A1bv': "#7B4F4B", 'D6': "#A1C299",
+            'A4m': "#300018", 'C42a': "#0AA6D8", 'C15cr': "#013349", 'C50l': "#00846F", 'C42g': "#372101"}
+
+    def _get_prof_pal(self):
+        return ['#%02x%02x%02x' % rgb_tup for rgb_tup in
+                         self.create_colour_list(mix_col=(255, 255, 255), sq_dist_cutoff=1000, num_cols=50,
+                                                 time_out_iterations=10000)]
+
+    def _get_prof_color_dict(self):
+        temp_col_dict = {}
+        for i, prof_name in enumerate(self.ordered_prof_names):
+            temp_col_dict[prof_name] = self.prof_pal[i]
+        return temp_col_dict
+
+    def _get_ordered_prof_names(self):
+        return self.prof_rel_df.sum().sort_values(ascending=False).index.values.tolist()
+
+    def _get_seq_color_dict(self):
+        temp_col_dict = {}
+        for i, seq in enumerate(self.ordered_seq_names):
+            temp_col_dict[seq] = self.seq_pal[i]
+        return temp_col_dict
 
     def create_colour_list(
             self, sq_dist_cutoff=None, mix_col=None, num_cols=50,
@@ -993,15 +659,7 @@ class SampleOrdinationFigure:
 
     @staticmethod
     def _get_colour_list():
-        return [
-            "#FFFF00", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#006FA6", "#A30059", "#FFDBE5", "#7A4900",
-            "#0000A6",
-            "#63FFAC", "#B79762", "#004D43", "#8FB0FF", "#997D87", "#5A0007", "#809693", "#FEFFE6", "#1B4400",
-            "#4FC601",
-            "#3B5DFF", "#4A3B53", "#FF2F80", "#61615A", "#BA0900", "#6B7900", "#00C2A0", "#FFAA92", "#FF90C9",
-            "#B903AA",
-            "#D16100", "#DDEFFF", "#000035", "#7B4F4B", "#A1C299", "#300018", "#0AA6D8", "#013349", "#00846F",
-            "#372101",
+        colour_list = [
             "#FFB500", "#C2FFED", "#A079BF", "#CC0744", "#C0B9B2", "#C2FF99", "#001E09", "#00489C", "#6F0062",
             "#0CBD66",
             "#EEC3FF", "#456D75", "#B77B68", "#7A87A1", "#788D66", "#885578", "#FAD09F", "#FF8A9A", "#D157A0",
@@ -1047,130 +705,484 @@ class SampleOrdinationFigure:
             "#98D058", "#6C8F7D", "#D7BFC2", "#3C3E6E", "#D83D66", "#2F5D9B", "#6C5E46", "#D25B88", "#5B656C",
             "#00B57F",
             "#545C46", "#866097", "#365D25", "#252F99", "#00CCFF", "#674E60", "#FC009C", "#92896B"]
+        return colour_list
 
 
-class LegendPlotter:
-    """This class can be used by the SeqStackedBarPlotter and the TypeStackedBarPlotter to handle
-    the plotting of the legend subplot.
-    """
-    def __init__(self, parent_plotter, ax, type_plotting=False):
-        # whether we are plotting types
-        self.type_plotting=type_plotting
-        self.parent_plotter = parent_plotter
-        self.ax_to_plot_on = ax
-        # legend setup parameters
-        if type_plotting:
-            self.max_n_rows = 3
-            self.max_n_cols = 3
-        else:
-            self.max_n_rows = 3
-            self.max_n_cols = 7
-        self.num_leg_cells = self.max_n_rows * self.max_n_cols
-        self.y_coord_increments = 100 / self.max_n_rows
-        self.leg_box_depth = 2 / 3 * self.y_coord_increments
-
-        self.x_coord_increments = 100 / self.max_n_cols
-        if type_plotting:
-            self.leg_box_width = self.x_coord_increments /5
-        else:
-            self.leg_box_width = self.x_coord_increments / 3
-        self._set_n_rows_and_last_row_len()
-        self.column_count = 0
-
-    def plot_legend_seqs(self):
-        self._set_ylim_and_x_lim_and_invert_y_axis()
-
-        self._plot_legend_rows()
-
-        self._remove_frames_from_axis()
-
-    def _plot_legend_rows(self):
-        if not self.type_plotting:
-            sys.stdout.write(
-                f'\nGenerating figure legend for {str(self.num_leg_cells)} most common sequences\n')
-        else:
-            sys.stdout.write(
-                f'\nGenerating figure legend for {str(self.num_leg_cells)} most common ITS2 '
-                f'type profiles\n')
-
-        for row_increment in range(min(self.n_rows, self.max_n_rows)):
-
-            if self._this_is_last_row_of_legend(row_increment=row_increment):
-                for col_increment in range(self.max_n_cols):
-                    self._plot_legend_row(row_increment=row_increment, col_increment=col_increment)
-
-                    self.column_count += 1
+    class LegendPlotter:
+        """This class can be used by the SeqStackedBarPlotter and the TypeStackedBarPlotter to handle
+        the plotting of the legend subplot.
+        """
+        def __init__(self, parent_plotter, ax, type_plotting=False):
+            # whether we are plotting types
+            self.type_plotting=type_plotting
+            self.parent_plotter = parent_plotter
+            self.ax_to_plot_on = ax
+            # legend setup parameters
+            if type_plotting:
+                self.max_n_rows = 3
+                self.max_n_cols = 3
             else:
-                for col_increment in range(self.last_row_len):
-                    self._plot_legend_row(row_increment=row_increment, col_increment=col_increment)
+                self.max_n_rows = 3
+                self.max_n_cols = 7
+            self.num_leg_cells = self.max_n_rows * self.max_n_cols
+            self.y_coord_increments = 100 / self.max_n_rows
+            self.leg_box_depth = 2 / 3 * self.y_coord_increments
 
-                    self.column_count += 1
-
-    def _set_ylim_and_x_lim_and_invert_y_axis(self):
-        # Once we know the number of rows, we can also adjust the y axis limits
-        self.ax_to_plot_on.set_xlim(0, 100)
-        self.ax_to_plot_on.set_ylim(0, ((self.n_rows - 1) * self.y_coord_increments) + self.leg_box_depth)
-        self.ax_to_plot_on.invert_yaxis()
-
-    def _set_n_rows_and_last_row_len(self):
-        if not self.type_plotting:  # we are plotting sequences
-            col_elements_to_plot = len(self.parent_plotter.ordered_seq_names)
-        else:  # we are plotting types
-            col_elements_to_plot = len(self.parent_plotter.ordered_prof_names)
-        if col_elements_to_plot < self.num_leg_cells:
-            if col_elements_to_plot % self.max_n_cols != 0:
-                self.n_rows = int(col_elements_to_plot / self.max_n_cols) + 1
-                self.last_row_len = col_elements_to_plot % self.max_n_cols
+            self.x_coord_increments = 100 / self.max_n_cols
+            if type_plotting:
+                self.leg_box_width = self.x_coord_increments /5
             else:
-                self.n_rows = int(col_elements_to_plot / self.max_n_cols)
+                self.leg_box_width = self.x_coord_increments / 3
+            self._set_n_rows_and_last_row_len()
+            self.column_count = 0
+
+        def plot_legend_seqs(self):
+            self._set_ylim_and_x_lim_and_invert_y_axis()
+
+            self._plot_legend_rows()
+
+            self._remove_frames_from_axis()
+
+        def _plot_legend_rows(self):
+            if not self.type_plotting:
+                sys.stdout.write(
+                    f'\nGenerating figure legend for {str(self.num_leg_cells)} most common sequences\n')
+            else:
+                sys.stdout.write(
+                    f'\nGenerating figure legend for {str(self.num_leg_cells)} most common ITS2 '
+                    f'type profiles\n')
+
+            for row_increment in range(min(self.n_rows, self.max_n_rows)):
+
+                if self._this_is_last_row_of_legend(row_increment=row_increment):
+                    for col_increment in range(self.max_n_cols):
+                        self._plot_legend_row(row_increment=row_increment, col_increment=col_increment)
+
+                        self.column_count += 1
+                else:
+                    for col_increment in range(self.last_row_len):
+                        self._plot_legend_row(row_increment=row_increment, col_increment=col_increment)
+
+                        self.column_count += 1
+
+        def _set_ylim_and_x_lim_and_invert_y_axis(self):
+            # Once we know the number of rows, we can also adjust the y axis limits
+            self.ax_to_plot_on.set_xlim(0, 100)
+            self.ax_to_plot_on.set_ylim(0, ((self.n_rows - 1) * self.y_coord_increments) + self.leg_box_depth)
+            self.ax_to_plot_on.invert_yaxis()
+
+        def _set_n_rows_and_last_row_len(self):
+            if not self.type_plotting:  # we are plotting sequences
+                col_elements_to_plot = len(self.parent_plotter.ordered_seq_names)
+            else:  # we are plotting types
+                col_elements_to_plot = len(self.parent_plotter.ordered_prof_names)
+            if col_elements_to_plot < self.num_leg_cells:
+                if col_elements_to_plot % self.max_n_cols != 0:
+                    self.n_rows = int(col_elements_to_plot / self.max_n_cols) + 1
+                    self.last_row_len = col_elements_to_plot % self.max_n_cols
+                else:
+                    self.n_rows = int(col_elements_to_plot / self.max_n_cols)
+                    self.last_row_len = self.max_n_cols
+            else:
+                self.n_rows = self.max_n_rows
                 self.last_row_len = self.max_n_cols
-        else:
-            self.n_rows = self.max_n_rows
-            self.last_row_len = self.max_n_cols
 
-    def _this_is_last_row_of_legend(self, row_increment):
-        return (row_increment + 1) != self.n_rows
+        def _this_is_last_row_of_legend(self, row_increment):
+            return (row_increment + 1) != self.n_rows
 
-    def _remove_frames_from_axis(self):
-        self.ax_to_plot_on.set_frame_on(False)
-        self.ax_to_plot_on.get_xaxis().set_visible(False)
-        self.ax_to_plot_on.get_yaxis().set_visible(False)
+        def _remove_frames_from_axis(self):
+            self.ax_to_plot_on.set_frame_on(False)
+            self.ax_to_plot_on.get_xaxis().set_visible(False)
+            self.ax_to_plot_on.get_yaxis().set_visible(False)
 
-    def _plot_legend_row(self, row_increment, col_increment):
-        leg_box_x, leg_box_y = self._add_legend_rect(col_increment=col_increment, row_increment=row_increment)
-        self._add_legend_text(leg_box_x, leg_box_y)
+        def _plot_legend_row(self, row_increment, col_increment):
+            leg_box_x, leg_box_y = self._add_legend_rect(col_increment=col_increment, row_increment=row_increment)
+            self._add_legend_text(leg_box_x, leg_box_y)
 
-    def _add_legend_text(self, leg_box_x, leg_box_y):
-        text_x = leg_box_x + self.leg_box_width + (0.2 * self.leg_box_width)
-        text_y = leg_box_y + (0.5 * self.leg_box_depth)
-        if not self.type_plotting:
-            self.ax_to_plot_on.text(
-                text_x, text_y, self.parent_plotter.ordered_seq_names[self.column_count],
-                verticalalignment='center', fontsize='xx-small')
-        else:
-            type_name_to_print = self.parent_plotter.ordered_prof_names[self.column_count]
-            if len(type_name_to_print) > 15:
-                type_name_to_print = f'{type_name_to_print[:14]}...'
+        def _add_legend_text(self, leg_box_x, leg_box_y):
+            text_x = leg_box_x + self.leg_box_width + (0.2 * self.leg_box_width)
+            text_y = leg_box_y + (0.5 * self.leg_box_depth)
+            if not self.type_plotting:
+                self.ax_to_plot_on.text(
+                    text_x, text_y, self.parent_plotter.ordered_seq_names[self.column_count],
+                    verticalalignment='center', fontsize='xx-small')
+            else:
+                type_name_to_print = self.parent_plotter.ordered_prof_names[self.column_count]
+                if len(type_name_to_print) > 15:
+                    type_name_to_print = f'{type_name_to_print[:14]}...'
 
-            self.ax_to_plot_on.text(
-                text_x, text_y, type_name_to_print,
-                verticalalignment='center', fontsize='xx-small')
+                self.ax_to_plot_on.text(
+                    text_x, text_y, type_name_to_print,
+                    verticalalignment='center', fontsize='xx-small')
 
-    def _add_legend_rect(self, col_increment, row_increment):
-        leg_box_x = col_increment * self.x_coord_increments
-        leg_box_y = row_increment * self.y_coord_increments
-        if not self.type_plotting:
-            self.ax_to_plot_on.add_patch(Rectangle(
-                (leg_box_x, leg_box_y), width=self.leg_box_width, height=self.leg_box_depth,
-                color=self.parent_plotter.seq_color_dict[
-                    self.parent_plotter.ordered_seq_names[self.column_count]]))
-        else:
-            self.ax_to_plot_on.add_patch(Rectangle(
-                (leg_box_x, leg_box_y), width=self.leg_box_width, height=self.leg_box_depth,
-                color=self.parent_plotter.prof_color_dict[
-                    self.parent_plotter.ordered_prof_names[self.column_count]]))
-        return leg_box_x, leg_box_y
+        def _add_legend_rect(self, col_increment, row_increment):
+            leg_box_x = col_increment * self.x_coord_increments
+            leg_box_y = row_increment * self.y_coord_increments
+            if not self.type_plotting:
+                self.ax_to_plot_on.add_patch(Rectangle(
+                    (leg_box_x, leg_box_y), width=self.leg_box_width, height=self.leg_box_depth,
+                    color=self.parent_plotter.seq_color_dict[
+                        self.parent_plotter.ordered_seq_names[self.column_count]]))
+            else:
+                self.ax_to_plot_on.add_patch(Rectangle(
+                    (leg_box_x, leg_box_y), width=self.leg_box_width, height=self.leg_box_depth,
+                    color=self.parent_plotter.prof_color_dict[
+                        self.parent_plotter.ordered_prof_names[self.column_count]]))
+            return leg_box_x, leg_box_y
 
-sof = SampleOrdinationFigure(distance_plotting_format='sample_type_by_site')
-sof.print_out_sample_id_list()
+
+class MapWthInsetFigure:
+    def __init__(self):
+        self.root_dir = os.path.dirname(os.path.realpath(__file__))
+        self.input_base_dir = os.path.join(self.root_dir, '84', 'input')
+        self.gis_input_base_path = os.path.join(self.input_base_dir, 'gis')
+        self.large_map_ax = plt.figure(figsize=(8, 5))
+
+    def draw_map(self):
+        self.large_map_ax.set_extent(extents=(33.0, 41.0, 22.0, 30.0))
+        land_110m, ocean_110m, boundary_110m = self._get_naural_earth_features_big_map()
+        print('drawing annotations on big map')
+        self._draw_natural_earth_features_big_map(land_110m, ocean_110m, boundary_110m)
+        print('big map annotations complete')
+        self._put_gridlines_on_large_map_ax()
+        self._annotate_map_with_sites()
+        # self.zoom_map_ax.set_extent(extents=(38.75, 39.25, 22, 22.5))
+        # land_10m, ocean_10m = self._get_naural_earth_features_zoom_map()
+        # self._draw_natural_earth_features_zoom_map(land_10m, ocean_10m)
+        # self._put_gridlines_on_zoom_map_ax()
+        # self._annotate_zoom_map()
+
+        small_map_ax, small_x0, small_x1, small_y0, small_y1 = self._position_and_draw_inset_axis()
+
+        self._add_land_and_sea_to_inset(small_map_ax, small_x0, small_x1, small_y0, small_y1)
+
+        self._draw_reefs_on_inset(small_map_ax)
+
+        self._draw_inset_location(small_x0, small_x1, small_y0, small_y1)
+
+        self._draw_zoom_shade(small_x0, small_x1, small_y1)
+
+        # self.large_map_ax.plot([small_x0, 37], [small_y1, 26], '-', linewidth=0.8, color='black', zorder=4)
+        # self.large_map_ax.plot([small_x1, 41], [small_y1, 26], '-', linewidth=0.8, color='black', zorder=4)
+        self._reposition_inset(small_map_ax)
+
+        # points for the site markers on inset
+        annotation_xs, annotation_y = self._draw_site_markers_on_inset(small_map_ax, small_x0, small_x1)
+        self._draw_arrows_on_inset(annotation_xs, annotation_y, small_map_ax)
+
+        self._draw_gridlines_on_inset(small_map_ax)
+
+        poly_xs = self._add_legend_bbox()
+
+        self._populate_map_legend()
+
+    def _get_naural_earth_features_big_map(self):
+        land_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='land',
+                                                        scale='50m')
+        ocean_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='ocean',
+                                                         scale='50m')
+        boundary_110m = cartopy.feature.NaturalEarthFeature(category='cultural',
+                                                            name='admin_0_boundary_lines_land', scale='110m')
+        return land_110m, ocean_110m, boundary_110m
+
+    def _get_naural_earth_features_zoom_map(self):
+        land_10m = cartopy.feature.NaturalEarthFeature(category='physical', name='land',
+                                                       scale='50m')
+        ocean_10m = cartopy.feature.NaturalEarthFeature(category='physical', name='ocean',
+                                                        scale='50m')
+
+        return land_10m, ocean_10m
+
+    def _draw_natural_earth_features_big_map(self, land_110m, ocean_110m, boundary_110m):
+        """NB the RGB must be a tuple in a list and the R, G, B must be given as a value between 0 and 1"""
+        self.large_map_ax.add_feature(land_110m, facecolor=[(238 / 255, 239 / 255, 219 / 255)],
+                                      edgecolor='black', linewidth=0.2)
+        self.large_map_ax.add_feature(ocean_110m, facecolor=[(136 / 255, 182 / 255, 224 / 255)],
+                                      edgecolor='black', linewidth=0.2)
+        self.large_map_ax.add_feature(boundary_110m, edgecolor='gray', linewidth=0.2, facecolor='None')
+
+    def _draw_natural_earth_features_zoom_map(self, land_10m, ocean_10m):
+        """NB the RGB must be a tuple in a list and the R, G, B must be given as a value between 0 and 1"""
+        self.zoom_map_ax.add_feature(land_10m, facecolor=[(238 / 255, 239 / 255, 219 / 255)],
+                                     edgecolor='black')
+        self.zoom_map_ax.add_feature(ocean_10m, facecolor=[(136 / 255, 182 / 255, 224 / 255)],
+                                     edgecolor='black')
+
+    def _put_gridlines_on_large_map_ax(self):
+        """ Although there is a GeoAxis.gridlines() method, this method does not yet allow a lot of
+        bespoke options. If we want to only put the labels on the top and left then we have to
+        generate a Gridliner object (normally returned by GeoAxis.gridlines() ourselves. We then need
+        to manually change the xlabels_bottom and ylabels_right attributes of this Gridliner object.
+        We then draw it by adding it to the GeoAxis._gridliners list."""
+
+        xlocs = [32.0, 34.0, 36.0, 38.0, 40.0, 42.0]
+        ylocs = [21.0, 23.0, 25.0, 27.0, 29.0, 31.0]
+
+        if xlocs is not None and not isinstance(xlocs, mticker.Locator):
+            xlocs = mticker.FixedLocator(xlocs)
+        if ylocs is not None and not isinstance(ylocs, mticker.Locator):
+            ylocs = mticker.FixedLocator(ylocs)
+        g1 = Gridliner(
+            axes=self.large_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
+            xlocator=xlocs, ylocator=ylocs)
+        g1.xlabels_bottom = False
+        g1.ylabels_right = False
+        self.large_map_ax._gridliners.append(g1)
+        # self.large_map_ax.gridlines(draw_labels=True)
+
+    def _put_gridlines_on_zoom_map_ax(self):
+        """ Although there is a GeoAxis.gridlines() method, this method does not yet allow a lot of
+        bespoke options. If we want to only put the labels on the top and left then we have to
+        generate a Gridliner object (normally returned by GeoAxis.gridlines() ourselves. We then need
+        to manually change the xlabels_bottom and ylabels_right attributes of this Gridliner object.
+        We then draw it by adding it to the GeoAxis._gridliners list."""
+
+        xlocs = [38.75, 39.0, 39.25, 39.5]
+        ylocs = [22.0, 22.25, 22.5, 22.75]
+
+        if xlocs is not None and not isinstance(xlocs, mticker.Locator):
+            xlocs = mticker.FixedLocator(xlocs)
+        if ylocs is not None and not isinstance(ylocs, mticker.Locator):
+            ylocs = mticker.FixedLocator(ylocs)
+        g1 = Gridliner(
+            axes=self.zoom_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
+            xlocator=xlocs, ylocator=ylocs)
+        g1.xlabels_bottom = False
+        g1.ylabels_right = False
+        self.zoom_map_ax._gridliners.append(g1)
+        # self.zoom_map_ax.gridlines(draw_labels=True)
+
+    def _annotate_map_with_sites(self):
+        for site in ['eilat']:
+            if site != 'protected':
+                self.large_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
+                                       self.site_marker_dict[site], markerfacecolor='white', markeredgecolor='black',
+                                       markersize=8)
+            else:
+                self.large_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
+                                       self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
+                                       markersize=8)
+
+    def _annotate_zoom_map(self):
+        # collect unique tuples of locations
+        x_site_coords = [39.05165, 39.04878, 38.960234]
+        y_site_coords = [22.26302, 22.26189, 22.303411]
+
+        self.zoom_map_ax.plot(x_site_coords[0], y_site_coords[0], 'bo')
+        self.zoom_map_ax.plot(x_site_coords[1], y_site_coords[1], 'go')
+        self.zoom_map_ax.plot(x_site_coords[2], y_site_coords[2], 'ko')
+
+    def _populate_map_legend(self):
+        leg_xs = [33.6]
+        leg_ys = [22 + 8 / 5, 22 + 6 / 5, 22 + 4 / 5, 22 + 2 / 5]
+        for i, site in enumerate(['eilat', 'kaust', 'exposed', 'protected']):
+            if site != 'protected':
+                self.large_map_ax.plot(leg_xs[0], leg_ys[i], self.site_marker_dict[site], markerfacecolor='white',
+                                       markeredgecolor='black', markersize=6, zorder=4)
+            else:
+                self.large_map_ax.plot(leg_xs[0], leg_ys[i],
+                                       self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
+                                       markersize=6, zorder=4)
+            self.large_map_ax.text(leg_xs[0] + 0.75, leg_ys[i], s=site, verticalalignment='center',
+                                   horizontalalignment='left', fontsize='x-small')
+
+    def _add_legend_bbox(self):
+        poly_xs = [33, 36, 36, 33]
+        poly_ys = [22, 22, 24, 24]
+        leg_poly = Polygon(
+            xy=[[x, y] for x, y in zip(poly_xs, poly_ys)],
+            closed=True, edgecolor='black', fill=True,
+            facecolor='white', alpha=0.8, zorder=3)
+        self.large_map_ax.add_patch(leg_poly)
+        return poly_xs
+
+    def _draw_arrows_on_inset(self, annotation_xs, annotation_y, small_map_ax):
+        self._annotate_site_arrow_small_map(
+            small_map_ax, tail_x=annotation_xs[0], tail_y=annotation_y - 0.01,
+            head_x=self.sites_location_dict['kaust'][0], head_y=self.sites_location_dict['kaust'][1],
+            zorder=5, linewidth=0.2)
+        self._annotate_site_arrow_small_map(
+            small_map_ax, tail_x=annotation_xs[1], tail_y=annotation_y - 0.01,
+            head_x=self.sites_location_dict['exposed'][0], head_y=self.sites_location_dict['exposed'][1],
+            zorder=5, linewidth=0.2)
+        self._annotate_site_arrow_small_map(
+            small_map_ax, tail_x=annotation_xs[2], tail_y=annotation_y - 0.01,
+            head_x=self.sites_location_dict['protected'][0], head_y=self.sites_location_dict['protected'][1],
+            zorder=5, linewidth=0.2)
+
+    def _draw_gridlines_on_inset(self, small_map_ax):
+        xlocs = [38.90, 38.95, 39.0, 39.10, 39.15]
+        ylocs = [22.15, 22.20, 22.30, 22.35]
+        if xlocs is not None and not isinstance(xlocs, mticker.Locator):
+            xlocs = mticker.FixedLocator(xlocs)
+        if ylocs is not None and not isinstance(ylocs, mticker.Locator):
+            ylocs = mticker.FixedLocator(ylocs)
+        g1 = Gridliner(
+            axes=small_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
+            xlocator=xlocs, ylocator=ylocs)
+        g1.xlabels_top = False
+        g1.ylabels_right = False
+        small_map_ax._gridliners.append(g1)
+
+    def _draw_site_markers_on_inset(self, small_map_ax, small_x0, small_x1):
+        annotation_y = 22.33
+        annotation_xs = [small_x0 + 1 / 6 * (small_x1 - small_x0), small_x0 + 2 / 6 * (small_x1 - small_x0),
+                         small_x0 + 3 / 6 * (small_x1 - small_x0)]
+        # plot the 'kaust point'
+        small_map_ax.plot(
+            annotation_xs[0], annotation_y, self.site_marker_dict['kaust'],
+            markerfacecolor='white', markeredgecolor='black', markersize=8)
+        # plot exposed
+        small_map_ax.plot(
+            annotation_xs[1], annotation_y, self.site_marker_dict['exposed'],
+            markerfacecolor='white', markeredgecolor='black', markersize=8)
+        small_map_ax.plot(
+            annotation_xs[2], annotation_y, self.site_marker_dict['protected'],
+            markerfacecolor='black', markeredgecolor='black', markersize=8)
+        return annotation_xs, annotation_y
+
+    def _reposition_inset(self, small_map_ax):
+        plt.draw()
+        large_map_bbox = self.large_map_ax.get_position()
+        small_map_bbox = small_map_ax.get_position()
+        small_map_ax.set_position([
+            large_map_bbox.x1 - small_map_bbox.width,
+            large_map_bbox.y1 - small_map_bbox.height,
+            small_map_bbox.width,
+            small_map_bbox.height])
+
+    def _draw_zoom_shade(self, small_x0, small_x1, small_y1):
+        # draw the lines that connect the inset to the bouding box
+        poly_x = [small_x0, small_x1, 41, 37]
+        poly_y = [small_y1, small_y1, 26, 26]
+        poly_xy = [[x, y] for x, y in zip(poly_x, poly_y)]
+        zoom_poly = Polygon(poly_xy, closed=True, fill=True, color='black', alpha=0.1, linewidth=1, zorder=4)
+        self.large_map_ax.add_patch(zoom_poly)
+
+    def _draw_inset_location(self, small_x0, small_x1, small_y0, small_y1):
+        # draw the bounding box of the small map onto the big map
+        bbox_xs = [small_x0, small_x1, small_x1, small_x0]
+        bbox_ys = [small_y0, small_y0, small_y1, small_y1]
+        # bbox_xs = [36, 38, 38, 36]
+        # bbox_ys = [23, 23, 25, 25]
+        poly_xy = [[x, y] for x, y in zip(bbox_xs, bbox_ys)]
+        bbox_poly = Polygon(poly_xy, closed=True, fill=False, color='black', linewidth=1, zorder=4)
+        self.large_map_ax.add_patch(bbox_poly)
+
+    def _draw_reefs_on_inset(self, small_map_ax):
+        for i in range(1, 33, 1):
+            kml_path = os.path.join(self.gis_input_base_path, f'reef_{i}.kml')
+            with open(kml_path, 'r') as f:
+                file = [line.rstrip().lstrip() for line in f]
+            for i, line in enumerate(file):
+                if '<coordinates>' in line:
+                    coords = file[i + 1]
+                    break
+            coords_tup_list_str = coords.split(' ')
+            x_y_tups_of_feature = []
+            for tup in coords_tup_list_str:
+                x_y_tups_of_feature.append([float(_) for _ in tup.split(',')[:-1]])
+            x_s = [_[0] for _ in x_y_tups_of_feature]
+            y_s = [_[1] for _ in x_y_tups_of_feature]
+            poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
+            reef_poly = Polygon(poly_xy, closed=True, fill=True, edgecolor='None', color='red', alpha=0.2)
+            small_map_ax.add_patch(reef_poly)
+
+    def _add_land_and_sea_to_inset(self, small_map_ax, small_x0, small_x1, small_y0, small_y1):
+        x_s, y_s = self._add_kml_file_to_ax(ax=small_map_ax,
+                                            kml_path=os.path.join(self.gis_input_base_path, 'kaust_coast.kml'))
+        poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
+        # add top right and bottom right
+        poly_xy.extend([[small_x1, small_y0], [small_x1, small_y1]])
+        land_poly = Polygon(poly_xy, closed=True, fill=True, color=(238 / 255, 239 / 255, 219 / 255))
+        small_map_ax.add_patch(land_poly)
+        # now do the seq poly
+        poly_xy = [[x, y] for x, y in zip(x_s, y_s)]
+        # add top left and bottom left
+        poly_xy.extend([[small_x0, small_y0], [small_x0, small_y1]])
+        sea_poly = Polygon(poly_xy, closed=True, fill=True, color=(136 / 255, 182 / 255, 224 / 255))
+        small_map_ax.add_patch(sea_poly)
+
+    def _position_and_draw_inset_axis(self):
+        # making a smal axis
+        dis_data = self.large_map_ax.transData.transform([(37.0, 26.0), (41.0, 30.0)])
+        inv = self.fig.transFigure.inverted()
+        fig_data = inv.transform(dis_data)
+        width = fig_data[1][0] - fig_data[0][0]
+        height = fig_data[1][1] - fig_data[0][1]
+        small_map_ax = self.fig.add_axes([fig_data[0][0], fig_data[0][1], width, height], zorder=2,
+                                         projection=ccrs.PlateCarree())
+        small_x0 = 38.95
+        small_x1 = 39.12
+        small_y0 = 22.178
+        small_y1 = 22.347
+        small_map_ax.set_extent(extents=(small_x0, small_x1, small_y0, small_y1))
+        return small_map_ax, small_x0, small_x1, small_y0, small_y1
+
+    def _annotate_site_arrow_small_map(self, small_map_ax, head_x, head_y, tail_x, tail_y, zorder, linewidth=1):
+        # draw arrows on plot
+        dx = head_x - tail_x
+        dy = head_y - tail_y
+        small_map_ax.arrow(x=tail_x, y=tail_y, dx=dx, dy=dy, zorder=zorder, linewidth=linewidth)
+
+    def _add_kml_file_to_ax(self, ax, kml_path, linewidth=0.8, linestyle='-', color='black', ):
+        with open(kml_path, 'r') as f:
+            file = [line.rstrip().lstrip() for line in f]
+        for i, line in enumerate(file):
+            if '<coordinates>' in line:
+                coords = file[i + 1]
+                break
+        coords_tup_list_str = coords.split(' ')
+        x_y_tups_of_feature = []
+        for tup in coords_tup_list_str:
+            x_y_tups_of_feature.append([float(_) for _ in tup.split(',')[:-1]])
+        x_s = [_[0] for _ in x_y_tups_of_feature]
+        y_s = [_[1] for _ in x_y_tups_of_feature]
+        ax.plot(x_s, y_s, linewidth=linewidth, linestyle=linestyle, color=color)
+        return x_s, y_s
+
+
+class TranscriptomicsFigure:
+    def __init__(self):
+        self.input_base_dir = os.path.join(self.root_dir, '84', 'input')
+        self.transcript_input_base_path = os.path.join(self.input_base_dir, 'transcripts')
+        self.transcript_kallisto_matrix_path = os.path.join(self.transcript_input_base_path,
+                                                            'spis_kallisto_TPM_norm_matrix.txt')
+        self.transcript_output_path = os.path.join(self.transcript_input_base_path, 'outputs')
+        self.host_kallisto_df = self._make_kallisto_df()
+
+    def _make_kallisto_df(self):
+        # with open(self.transcript_kallisto_matrix_path, 'r') as f:
+        #     data = [line.rstrip().lstrip() for line in f]
+        df = pd.read_csv(self.transcript_kallisto_matrix_path, sep='\t')
+        df = df.astype('float')
+        df['var'] = df.std(axis=1)
+
+        from scipy import stats
+        df_z = pd.DataFrame(stats.zscore(df, axis=1), columns=df.columns.values.tolist(),
+                            index=df.index.values.tolist())
+        # for i in range(36):
+        #     ax = plt.subplot(6,6,i+1)
+        #     ax.hist(df_z.iloc[i,:], bins=10)
+        # we are now interested in the genes that have the highest cumulative zscore where the absolute value of the
+        # score is taken (i.e. so that negative z-socres are also important).
+        # df_z['cumulative_z'] = df_z.apply(self._calculate_cumulative_zscores, axis=1)
+        df_z['cumulative_z'] = df_z.abs().sum(axis=1)
+        ax = plt.subplot(111)
+        ax.hist(df_z['cumulative_z'], bins=100)
+        df_z.sort_values('cumulative_z', axis=0, ascending=False, inplace=True)
+        # get the top 100 DEG
+
+        df_deg_100 = df_z.iloc[:100, :-2]
+        df_deg_100.to_csv(os.path.join(self.transcript_output_path, 'spis_deg_100.csv'))
+        apples = 'asdf'
+
+    def _calculate_cumulative_zscores(self, row):
+        tot = 0
+        for val in row.values.tolist():
+            tot += abs(val)
+        return tot
+
+sof = SampleOrdinationFigure()
 sof.plot_ordination_figure()
+# sof.print_out_sample_id_list()
