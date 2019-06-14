@@ -24,10 +24,7 @@ from matplotlib.colors import ListedColormap
 import numpy as np
 
 class SampleOrdinationFigure:
-    def __init__(self, plot_seqs_by='type', distance_plotting_format='only_samples', seq_type_arrangement='by_site', dynamic_profile_colour=False):
-        self.plot_seqs_by = plot_seqs_by
-        self.seq_type_arrangement = seq_type_arrangement
-        self.distance_plotting_format = distance_plotting_format
+    def __init__(self, dynamic_profile_colour=False):
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.input_base_dir = os.path.join(self.root_dir, 'classic', 'input')
 
@@ -35,8 +32,9 @@ class SampleOrdinationFigure:
         self.seq_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-06-10_07-15-02.209061.seqs.relative.txt')
         self.seq_rel_df = self._make_seq_rel_df()
         self.ordered_seq_names = self._get_ordered_seq_names()
-        self.seq_pal = self._get_colour_list()
-        self.seq_color_dict = self._get_seq_color_dict()
+        self.seq_color_dict = self._set_seq_colour_dict()
+
+        # self.seq_color_dict = self._get_seq_color_dict()
 
         # profile abundances
         self.profile_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-06-10_07-15-02.209061.profiles.relative.txt')
@@ -77,12 +75,6 @@ class SampleOrdinationFigure:
         os.makedirs(self.fig_out_path, exist_ok=True)
         # self.gis_input_base_path = os.path.join(self.input_base_dir, 'gis')
 
-        # Transcriptomics
-        # self.transcript_input_base_path = os.path.join(self.input_base_dir, 'transcripts')
-        # self.transcript_kallisto_matrix_path = os.path.join(self.transcript_input_base_path, 'spis_kallisto_TPM_norm_matrix.txt')
-        # self.transcript_output_path = os.path.join(self.transcript_input_base_path, 'outputs')
-        # self.host_kallisto_df = self._make_kallisto_df()
-
         # Figure setup
         # have it set up so that we can transfer this over to the cbass_84 script.
         # we will use GridSpecFromSubplotSpec to set up subplots for each of the sample distances and type distances
@@ -95,6 +87,8 @@ class SampleOrdinationFigure:
         self.gs = gridspec.GridSpec(gs_rows, gs_cols)
 
         # sample_distances_ordinations and sample_profile_ordinations
+        # four columns for each of the ordinations and one column between each of the ordinations = 19 columns
+        # the column in between allows space for the component label.
         self.sample_ordination_sub_gs = gridspec.GridSpecFromSubplotSpec(1, 19, subplot_spec=self.gs[:2, :])
         self.pc1_pc2_sample_dist_ax = plt.subplot(self.sample_ordination_sub_gs[0, :4])
         self.pc1_pc3_sample_dist_ax = plt.subplot(self.sample_ordination_sub_gs[0, 5:9])
@@ -108,11 +102,8 @@ class SampleOrdinationFigure:
                                       plt.subplot(self.sample_seq_info_sub_gs[:3, 10:14]),
                                       plt.subplot(self.sample_seq_info_sub_gs[:3, 15:19])]
         self.sample_seq_info_legend_axarr = [
-            plt.subplot(self.sample_seq_info_sub_gs[3:5, :9]),
-            plt.subplot(self.sample_seq_info_sub_gs[3:5, 10:19])]
-
-
-        # self.zoom_map_ax = plt.subplot(self.gs[:1, 1:2], projection=ccrs.PlateCarree(), zorder=1)
+            plt.subplot(self.sample_seq_info_sub_gs[3:4, :9]),
+            plt.subplot(self.sample_seq_info_sub_gs[3:4, 10:19])]
 
         self.sites = ['exposed', 'protected']
         self.experiments = ['CBASS', 'Classic']
@@ -122,9 +113,51 @@ class SampleOrdinationFigure:
         self.site_marker_dict = {'protected': 'o', 'exposed': 's'}
         self.classic_cbass_colour_dict = {'Classic': '#808080', 'CBASS': '#FFFFFF'}
 
+    def _set_seq_colour_dict(self):
+        """Create the colour dictionary that will be used for plotting by assigning a colour from the colour_palette
+        to the most abundant seqs first and after that cycle through the grey_pallette assigning colours
+        If we are only going to have a legend that is cols x rows as shown below, then we should only use
+        that many colours in the plotting."""
+        temp_colour_dict = {}
+        predefined_colour_dict = self._get_pre_def_colour_dict()
+
+        for seq_name, color_hash in predefined_colour_dict.items():
+            if seq_name in self.ordered_seq_names:
+                temp_colour_dict[seq_name] = color_hash
+
+        colour_palette, grey_palette = self._get_colour_lists()
+
+        remaining_seqs = [seq for seq in self.ordered_seq_names if seq not in predefined_colour_dict.keys()]
+
+        for i, seq_name in enumerate(remaining_seqs):
+            if i < len(colour_palette):
+                temp_colour_dict[seq_name] = colour_palette[i]
+            else:
+                grey_index = i % len(grey_palette)
+                temp_colour_dict[seq_name] = grey_palette[grey_index]
+
+        return temp_colour_dict
+
+    def _get_colour_lists(self):
+        colour_palette = self._get_colour_list()
+        grey_palette = ['#D0CFD4', '#89888D', '#4A4A4C', '#8A8C82', '#D4D5D0', '#53544F']
+        return colour_palette, grey_palette
+
+    @staticmethod
+    def _get_pre_def_colour_dict():
+        """These are the top 40 most abundnant named sequences. I have hardcoded their color."""
+        return {
+            'A1': "#FFFF00", 'C3': "#1CE6FF", 'C15': "#FF34FF", 'A1bo': "#FF4A46", 'D1': "#008941",
+            'C1': "#006FA6", 'C27': "#A30059", 'D4': "#FFDBE5", 'C3u': "#7A4900", 'C42.2': "#0000A6",
+            'A1bp': "#63FFAC", 'C115': "#B79762", 'C1b': "#004D43", 'C1d': "#8FB0FF", 'A1c': "#997D87",
+            'C66': "#5A0007", 'A1j': "#809693", 'B1': "#FEFFE6", 'A1k': "#1B4400", 'A4': "#4FC601",
+            'A1h': "#3B5DFF", 'C50a': "#4A3B53", 'C39': "#FF2F80", 'C3dc': "#61615A", 'D4c': "#BA0900",
+            'C3z': "#6B7900", 'C21': "#00C2A0", 'C116': "#FFAA92", 'A1cc': "#FF90C9", 'C72': "#B903AA",
+            'C15cl': "#D16100", 'C31': "#DDEFFF", 'C15cw': "#000035", 'A1bv': "#7B4F4B", 'D6': "#A1C299",
+            'A4m': "#300018", 'C42a': "#0AA6D8", 'C15cr': "#013349", 'C50l': "#00846F", 'C42g': "#372101"}
+
     def _get_hardcoded_profile_colours(self):
         return {'A1g/A1-A1l-A1cr-A1o-A1dp-A1p-A1dq-A1dn': '#ed8ed8', 'A1-A1ds-A1z-A1dr-A1bh': '#8ba4d1', 'A1-A1dm': '#aef686', 'A1-A1z-A1do': '#badffb', 'A1-A1du-A1z-A1ds-A1dr': '#fcad97', 'A1-A1z': '#8cfdc4'}
-
 
     def plot_ordination_figure(self):
 
@@ -138,9 +171,9 @@ class SampleOrdinationFigure:
         self._seq_and_type_plotting_site_ordered()
         plt.tight_layout()
         print('saving .png')
-        plt.savefig(os.path.join(self.fig_out_path, 'sample_profile_dists_and_seq_info.png'), dpi=1200)
+        plt.savefig(os.path.join(self.fig_out_path, 'classic_sample_profile_dists_and_seq_info.png'), dpi=1200)
         print('saving .svg')
-        plt.savefig(os.path.join(self.fig_out_path, 'sample_profile_dists_and_seq_info.svg'), dpi=1200)
+        plt.savefig(os.path.join(self.fig_out_path, 'classic_sample_profile_dists_and_seq_info.svg'), dpi=1200)
 
     def _seq_and_type_plotting_site_ordered(self):
         sample_order = self._get_sample_order()
@@ -313,7 +346,7 @@ class SampleOrdinationFigure:
             y_list.append(self.sample_pcoa_df['PC2'][sample_uid])
 
         for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
-            self.pc1_pc2_sample_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
+            self.pc1_pc2_sample_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4, s=20)
         self.pc1_pc2_sample_dist_ax.set_xticks([])
         self.pc1_pc2_sample_dist_ax.set_yticks([])
         self.pc1_pc2_sample_dist_ax.set_xlabel('PC1 - 84.9%')
@@ -330,7 +363,7 @@ class SampleOrdinationFigure:
                 continue
             y_list.append(self.sample_pcoa_df['PC3'][sample_uid])
         for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
-            self.pc1_pc3_sample_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
+            self.pc1_pc3_sample_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4, s=20)
         self.pc1_pc3_sample_dist_ax.set_xticks([])
         self.pc1_pc3_sample_dist_ax.set_yticks([])
         self.pc1_pc3_sample_dist_ax.set_xlabel('PC1 - 84.9%')
@@ -349,12 +382,6 @@ class SampleOrdinationFigure:
 
     def _get_ordered_prof_names(self):
         return self.prof_rel_df.sum().sort_values(ascending=False).index.values.tolist()
-
-    def _get_seq_color_dict(self):
-        temp_col_dict = {}
-        for i, seq in enumerate(self.ordered_seq_names):
-            temp_col_dict[seq] = self.seq_pal[i]
-        return temp_col_dict
 
     def _get_ordered_seq_names(self):
         return self.seq_rel_df.sum().sort_values(ascending=False).index.values.tolist()
@@ -482,15 +509,7 @@ class SampleOrdinationFigure:
 
     @staticmethod
     def _get_colour_list():
-        return [
-            "#FFFF00", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#006FA6", "#A30059", "#FFDBE5", "#7A4900",
-            "#0000A6",
-            "#63FFAC", "#B79762", "#004D43", "#8FB0FF", "#997D87", "#5A0007", "#809693", "#FEFFE6", "#1B4400",
-            "#4FC601",
-            "#3B5DFF", "#4A3B53", "#FF2F80", "#61615A", "#BA0900", "#6B7900", "#00C2A0", "#FFAA92", "#FF90C9",
-            "#B903AA",
-            "#D16100", "#DDEFFF", "#000035", "#7B4F4B", "#A1C299", "#300018", "#0AA6D8", "#013349", "#00846F",
-            "#372101",
+        colour_list = [
             "#FFB500", "#C2FFED", "#A079BF", "#CC0744", "#C0B9B2", "#C2FF99", "#001E09", "#00489C", "#6F0062",
             "#0CBD66",
             "#EEC3FF", "#456D75", "#B77B68", "#7A87A1", "#788D66", "#885578", "#FAD09F", "#FF8A9A", "#D157A0",
@@ -536,6 +555,7 @@ class SampleOrdinationFigure:
             "#98D058", "#6C8F7D", "#D7BFC2", "#3C3E6E", "#D83D66", "#2F5D9B", "#6C5E46", "#D25B88", "#5B656C",
             "#00B57F",
             "#545C46", "#866097", "#365D25", "#252F99", "#00CCFF", "#674E60", "#FC009C", "#92896B"]
+        return colour_list
 
     def create_colour_list(
             self, sq_dist_cutoff=None, mix_col=None, num_cols=50,
@@ -708,5 +728,5 @@ class LegendPlotter:
                     self.parent_plotter.ordered_prof_names[self.column_count]]))
         return leg_box_x, leg_box_y
 
-sof = SampleOrdinationFigure(distance_plotting_format='sample_type_by_site')
+sof = SampleOrdinationFigure()
 sof.plot_ordination_figure()
