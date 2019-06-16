@@ -64,7 +64,7 @@ class SampleOrdinationFigure:
             self.prof_pal = self._get_prof_pal()
             self.prof_color_dict = self._get_prof_color_dict()
         else:
-            self.prof_color_dict = self._get_hardcoded_profile_colours()
+            self.prof_color_dict = self._get_hardcoded_profile_colours_84()
 
         # seq abundances
         self.seq_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-04-21_09-11-11.379408.seqs.relative.txt')
@@ -146,7 +146,7 @@ class SampleOrdinationFigure:
                 y_lab=True
             self._plot_seqs_on_ax(
                 ordered_sample_list=ordered_sample_list,
-                ax=self.sub_plot_seqs_axarr[i],
+                ax=self.sample_seq_info_axarr[i],
                 width=width,
                 x_ind_list=[i * width for i in range(num_sampls_first_plot)],
                 num_samples_in_first_plot=num_sampls_first_plot, y_lab=y_lab, site=site)
@@ -162,13 +162,13 @@ class SampleOrdinationFigure:
         width = 1 / num_sampls_first_plot
         self._plot_seqs_on_ax(
             ordered_sample_list=sample_order[:num_sampls_first_plot],
-            ax=self.sub_plot_seqs_axarr[0],
+            ax=self.sample_seq_info_axarr[0],
             width=width,
             x_ind_list=[i * width for i in range(num_sampls_first_plot)],
             num_samples_in_first_plot=num_sampls_first_plot)
         self._plot_seqs_on_ax(
             ordered_sample_list=sample_order[num_sampls_first_plot:],
-            ax=self.sub_plot_seqs_axarr[1],
+            ax=self.sample_seq_info_axarr[1],
             width=width,
             x_ind_list=[i * width for i in range(len(sample_order) - num_sampls_first_plot)],
             num_samples_in_first_plot=num_sampls_first_plot)
@@ -195,7 +195,7 @@ class SampleOrdinationFigure:
         for i, sample_uid in enumerate(self.sample_pcoa_df.index.values.tolist()):
             y_list.append(self.sample_pcoa_df['PC3'][sample_uid])
         for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
-            self.pc1_pc3_sample_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
+            self.pc1_pc3_sample_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4, s=20)
         self.pc1_pc3_sample_dist_ax.set_xticks([])
         self.pc1_pc3_sample_dist_ax.set_yticks([])
         self.pc1_pc3_sample_dist_ax.set_xlabel('PC1 - 37.9%')
@@ -216,7 +216,7 @@ class SampleOrdinationFigure:
             color_list.append(site_color)
             marker_list.append(self.site_marker_dict[site])
         for x, y, c, m in zip(x_list, y_list, color_list, marker_list):
-            self.pc1_pc2_sample_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4)
+            self.pc1_pc2_sample_dist_ax.scatter(x, y, c=c, marker=m, edgecolors='black', linewidth=0.4, s=20)
         self.pc1_pc2_sample_dist_ax.set_xticks([])
         self.pc1_pc2_sample_dist_ax.set_yticks([])
         self.pc1_pc2_sample_dist_ax.set_xlabel('PC1 - 37.9%')
@@ -276,26 +276,14 @@ class SampleOrdinationFigure:
 
     def _plot_seqs_on_ax(self, ordered_sample_list, ax, width, x_ind_list, num_samples_in_first_plot, y_lab=True, site=None):
         prof_depth = self.format_seq_type_axis(ax, num_samples_in_first_plot, ordered_sample_list, width, x_ind_list, y_lab)
-        if self.seq_type_arrangement == 'by_site':
-            ax.set_title(site, fontsize='x-small')
+
+        ax.set_title(site, fontsize='x-small')
         patches_list = []
         color_list = []
-        if self.seq_type_arrangement != 'by_site':
-            current_site, line_y_val, point_y_val, start_point, type_count = self._init_site_designation_annotation_info()
+
 
         for sample_uid, x_ind in zip(ordered_sample_list, x_ind_list):
             # for each sample we will start at 0 for the y and then add the height of each bar to this
-            if self.seq_type_arrangement != 'by_site':
-                current_site, start_point, type_count = self._annotate_site_designation_info(ax, current_site,
-                                                                                             line_y_val, point_y_val,
-                                                                                             sample_uid, start_point,
-                                                                                             type_count, x_ind)
-            # if site == 'protected':
-            #     ax.scatter(x_ind + (0.5 * width), -0.45, marker=self.site_marker_dict[site],
-            #                facecolor='black')
-            # else:
-            #     ax.scatter(x_ind + (0.5*width), -0.45, marker=self.site_marker_dict[site], edgecolor='black', facecolor='white')
-
             # for each sequence, create a rect patch
             # the rect will be 1 in width and centered about the ind value.
             # make the sequence rectangles
@@ -310,14 +298,8 @@ class SampleOrdinationFigure:
             self._add_type_rects_to_patches_list(color_list, non_zero_sample_series, patches_list, prof_depth,
                                                  sample_total, width, x_ind)
 
-        # add the last line
-        if self.seq_type_arrangement != 'by_site':
-            self._annotate_site_designation_info_last(ax, current_site, line_y_val, point_y_val, start_point,
-                                                      type_count, x_ind_list)
-
         self._add_seq_and_type_rects_to_axis(ax, color_list, patches_list)
-        # ax.autoscale_view()
-        # ax.figure.canvas.draw()
+
 
     def _add_seq_and_type_rects_to_axis(self, ax, color_list, patches_list):
         listed_colour_map = ListedColormap(color_list)
@@ -542,8 +524,10 @@ class SampleOrdinationFigure:
         return df
 
     # Colour methods
-    def _get_hardcoded_profile_colours(self):
-        return {'A1g/A1-A1l-A1cr-A1o-A1dp-A1p-A1dq-A1dn': '#ed8ed8', 'A1-A1ds-A1z-A1dr-A1bh': '#8ba4d1', 'A1-A1dm': '#aef686', 'A1-A1z-A1do': '#badffb', 'A1-A1du-A1z-A1ds-A1dr': '#fcad97', 'A1-A1z': '#8cfdc4'}
+    def _get_hardcoded_profile_colours_84(self):
+        return {'A1-A1z': '#88aac3', 'A1-A1dv-A1dw-A1dl': '#ed90ba', 'A1g/A1-A1l-A1cr-A1o-A1dp-A1p-A1dq-A1dn': '#c0d2ab',
+         'A1-A1ds-A1z-A1dr-A1bh': '#a3eaf6', 'A1-A1dm': '#baa1f6', 'A1/A1cl-A1z': '#80f093', 'A1-A1z-A1do': '#a48684',
+         'A1-A1du-A1z-A1ds-A1dr': '#fec685', 'A1-A1ea': '#fcfbb5'}
 
     def _set_seq_colour_dict(self):
         """Create the colour dictionary that will be used for plotting by assigning a colour from the colour_palette
@@ -590,7 +574,7 @@ class SampleOrdinationFigure:
 
     def _get_prof_pal(self):
         return ['#%02x%02x%02x' % rgb_tup for rgb_tup in
-                         self.create_colour_list(mix_col=(255, 255, 255), sq_dist_cutoff=1000, num_cols=50,
+                         self.create_colour_list(mix_col=(255, 255, 255), sq_dist_cutoff=5000, num_cols=9,
                                                  time_out_iterations=10000)]
 
     def _get_prof_color_dict(self):
@@ -1175,7 +1159,6 @@ class TranscriptomicsFigure:
 
         df_deg_100 = df_z.iloc[:100, :-2]
         df_deg_100.to_csv(os.path.join(self.transcript_output_path, 'spis_deg_100.csv'))
-        apples = 'asdf'
 
     def _calculate_cumulative_zscores(self, row):
         tot = 0

@@ -157,7 +157,7 @@ class SampleOrdinationFigure:
             'A4m': "#300018", 'C42a': "#0AA6D8", 'C15cr': "#013349", 'C50l': "#00846F", 'C42g': "#372101"}
 
     def _get_hardcoded_profile_colours(self):
-        return {'A1g/A1-A1l-A1cr-A1o-A1dp-A1p-A1dq-A1dn': '#ed8ed8', 'A1-A1ds-A1z-A1dr-A1bh': '#8ba4d1', 'A1-A1dm': '#aef686', 'A1-A1z-A1do': '#badffb', 'A1-A1du-A1z-A1ds-A1dr': '#fcad97', 'A1-A1z': '#8cfdc4'}
+        return {'A1g/A1-A1l-A1cr-A1o-A1dp-A1p-A1dq-A1dn': '#ed8ed8', 'A1-A1ds-A1z-A1dr-A1bh': '#8ba4d1', 'A1-A1dm': '#aef686', 'A1-A1z-A1do': '#badffb', 'A1-A1du-A1z-A1ds-A1dr': '#fcad97', 'A1-A1z': '#A48684'}
 
     def plot_ordination_figure(self):
 
