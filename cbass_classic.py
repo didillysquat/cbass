@@ -191,8 +191,8 @@ class SampleOrdinationFigure:
             site_ind = self.sites.index(self.meta_df.at[self.sample_uid_to_sample_name_dict[sample_uid], 'site'])
             sample_plotting_order_matrix[prof_name_ind][site_ind].append(sample_uid)
         sample_order = []
-        for i in range(len(sample_plotting_order_matrix)):
-            for j in range(len(sample_plotting_order_matrix[i])):
+        for i in range(len(sample_plotting_order_matrix)): # for each profile
+            for j in range(len(sample_plotting_order_matrix[i])): # for each site
                 sample_order.extend(sample_plotting_order_matrix[i][j])
         return sample_order
 
@@ -202,6 +202,11 @@ class SampleOrdinationFigure:
             for j, experiment in enumerate(self.experiments):
             # ordered sample list should be the samples of the site in the order of sample_order
                 ordered_sample_list = [sample_uid for sample_uid in sample_order if self.meta_df.at[self.sample_uid_to_sample_name_dict[sample_uid], 'site'] == site if self.meta_df.at[self.sample_uid_to_sample_name_dict[sample_uid], 'cbass_classic'] == experiment]
+                # print out the sample names in each of the four plots so that carol can annotate the svg
+                print(f'{site}_{experiment}')
+                for s_name in [self.sample_uid_to_sample_name_dict[sample_uid] for sample_uid in ordered_sample_list]:
+                    print(s_name)
+                print('\n\n')
                 num_sampls_first_plot = len(ordered_sample_list)
                 width = 1 / num_sampls_first_plot
                 if i == 0 and j == 0:
