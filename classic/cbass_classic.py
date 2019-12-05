@@ -22,11 +22,12 @@ from matplotlib.patches import Rectangle, Polygon, Arrow
 from matplotlib.collections import PatchCollection
 from matplotlib.colors import ListedColormap
 import numpy as np
+import re
 
 class SampleOrdinationFigure:
     def __init__(self, dynamic_profile_colour=False):
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
-        self.input_base_dir = os.path.join(self.root_dir, 'classic', 'input')
+        self.input_base_dir = os.path.join(self.root_dir, 'input')
 
         # sequences abundances
         self.seq_abund_relative_path = os.path.join(self.input_base_dir, '52_DBV_21022019_2019-06-10_07-15-02.209061.seqs.relative.txt')
@@ -68,10 +69,10 @@ class SampleOrdinationFigure:
         self.type_pcoa_df = self._make_type_pcoa_df()
 
         # metainfo
-        self.meta_path = os.path.join(self.root_dir, '84','input', 'meta_info.xlsx')
+        self.meta_path = os.path.join(self.input_base_dir, 'meta_info.xlsx')
         self.meta_df = self._make_meta_df()
 
-        self.fig_out_path = os.path.join(self.root_dir, 'classic', 'figures')
+        self.fig_out_path = os.path.join(self.root_dir, 'figures')
         os.makedirs(self.fig_out_path, exist_ok=True)
         # self.gis_input_base_path = os.path.join(self.input_base_dir, 'gis')
 
@@ -80,9 +81,9 @@ class SampleOrdinationFigure:
         # we will use GridSpecFromSubplotSpec to set up subplots for each of the sample distances and type distances
         # and then below we will have the seq data. for the main plots we will go 5 down 2 across
 
-        self.fig = plt.figure(figsize=(8, 5))
+        self.fig = plt.figure(figsize=(8, 7))
 
-        gs_rows = 5
+        gs_rows = 6
         gs_cols = 2
         self.gs = gridspec.GridSpec(gs_rows, gs_cols)
 
@@ -96,14 +97,15 @@ class SampleOrdinationFigure:
         self.pc1_pc3_profile_dist_ax = plt.subplot(self.sample_ordination_sub_gs[0, 15:19])
 
         # sequencing and profile info
-        self.sample_seq_info_sub_gs = gridspec.GridSpecFromSubplotSpec(5, 19, subplot_spec=self.gs[2:5, :])
+        # An area that covers rows 3-5 of the super plot gs, and is split into 5 rows and 19 cols
+        self.sample_seq_info_sub_gs = gridspec.GridSpecFromSubplotSpec(6, 19, subplot_spec=self.gs[2:7, :])
         self.sample_seq_info_axarr = [plt.subplot(self.sample_seq_info_sub_gs[:3, :4]),
                                       plt.subplot(self.sample_seq_info_sub_gs[:3, 5:9]),
                                       plt.subplot(self.sample_seq_info_sub_gs[:3, 10:14]),
                                       plt.subplot(self.sample_seq_info_sub_gs[:3, 15:19])]
         self.sample_seq_info_legend_axarr = [
-            plt.subplot(self.sample_seq_info_sub_gs[3:4, :9]),
-            plt.subplot(self.sample_seq_info_sub_gs[3:4, 10:19])]
+            plt.subplot(self.sample_seq_info_sub_gs[4:5, :9]),
+            plt.subplot(self.sample_seq_info_sub_gs[4:5, 10:19])]
 
         self.sites = ['exposed', 'protected']
         self.experiments = ['CBASS', 'Classic']
@@ -202,11 +204,29 @@ class SampleOrdinationFigure:
             for j, experiment in enumerate(self.experiments):
             # ordered sample list should be the samples of the site in the order of sample_order
                 ordered_sample_list = [sample_uid for sample_uid in sample_order if self.meta_df.at[self.sample_uid_to_sample_name_dict[sample_uid], 'site'] == site if self.meta_df.at[self.sample_uid_to_sample_name_dict[sample_uid], 'cbass_classic'] == experiment]
+                # Now that we are going to have the samples labelled we need to also sort
+                # according to the sample number and then temperature.
+                ordered_sample_names = [self.sample_uid_to_sample_name_dict[sample_uid] for sample_uid in ordered_sample_list]
+                # names are in the following format
+                # S2_E_ST_30B where S2 is the coral sample, E is exposed, ST is short term and 30B is the temperature
+                new_sample_names_sorted = []
+                for sample_num in range(1,8,1):
+                    temp_sub_unsorted = []
+                    for sample_name in ordered_sample_names:
+                        if f'S{sample_num}' in sample_name:
+                            temp_sub_unsorted.append(sample_name)
+                    temp_sub_sorted = []
+                    for temp in [30,31,33,35,36,39]:
+                        for sample_name in temp_sub_unsorted:
+                            if str(temp) in sample_name:
+                                temp_sub_sorted.append(sample_name)
+                    new_sample_names_sorted.extend(temp_sub_sorted)
+                # now we need to convert this list of sorted sample names back to a list of UIDs
+                sample_name_to_sample_uid_dict = {v:k for k, v in self.sample_uid_to_sample_name_dict.items()}
+                ordered_sample_list = [sample_name_to_sample_uid_dict[sample_name] for sample_name in new_sample_names_sorted]
                 # print out the sample names in each of the four plots so that carol can annotate the svg
                 print(f'{site}_{experiment}')
-                for s_name in [self.sample_uid_to_sample_name_dict[sample_uid] for sample_uid in ordered_sample_list]:
-                    print(s_name)
-                print('\n\n')
+
                 num_sampls_first_plot = len(ordered_sample_list)
                 width = 1 / num_sampls_first_plot
                 if i == 0 and j == 0:
@@ -232,7 +252,10 @@ class SampleOrdinationFigure:
         ax.spines['right'].set_visible(False)
         ax.spines['bottom'].set_visible(False)
         ax.spines['left'].set_visible(False)
-        ax.set_xticks([])
+        ax.set_xticks([x_left + 0.5*width for x_left in x_ind_list])
+        # Chris wants the names in the format of Col1 36 instead of e.g. S1_E_ST_36
+        # We will implement this here.
+        ax.set_xticklabels([self._convert_sample_name_to_new_format(self.sample_uid_to_sample_name_dict[sample_uid]) for sample_uid in ordered_sample_list], rotation=90, size=4)
         ax.set_yticks([])
         ax.plot([x_ind_list[0], x_ind_list[-1] + width], [0, 0], 'k-', linewidth=ax.spines['right']._linewidth)
         if y_lab:
@@ -241,6 +264,14 @@ class SampleOrdinationFigure:
             ax.text(x=-0.08, y=-(prof_depth + 0.2) / 2, s='predicted\nprofile', horizontalalignment='center',
                     verticalalignment='center', rotation='vertical', fontsize='xx-small')
         return prof_depth
+
+    def _convert_sample_name_to_new_format(self, sample_name):
+        # We need to extract the number and the temperature from the sample name
+        match_object = re.match(pattern=r'S(\d)_\w_\w{2}_{1,2}(\d\d)\w', string=sample_name)
+        if match_object:
+            return f'Col{match_object.group(1)} {match_object.group(2)}'
+        else:
+            foo = 'bar'
 
     def _plot_seqs_on_ax(self, ordered_sample_list, ax, width, x_ind_list, num_samples_in_first_plot, y_lab=True, title=None):
         prof_depth = self.format_seq_type_axis(ax, num_samples_in_first_plot, ordered_sample_list, width, x_ind_list, y_lab)

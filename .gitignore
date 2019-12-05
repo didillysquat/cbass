@@ -1,2 +1,9 @@
 .idea
-input
+.DS_Store
+84/figures/
+84/input/
+84/testing_pheatmap.R
+classic/figures/
+classic/input/
+classic/sample_id_list_classic
+classic/sample_order_for_carol.txt
